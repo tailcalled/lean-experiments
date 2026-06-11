@@ -1,94 +1,110 @@
-import Mathlib.Data.Part
+import LeanExperiments.PCA.Partial
 
 /-!
 # Partial combinatory algebras
 
 A *partial combinatory algebra* (PCA) is the algebraic structure underlying
-Kleene realizability: a carrier `A` equipped with a *partial* binary
-application together with two distinguished elements `k` and `s` from which
-every (partial) "computable" function on `A` can be built (combinatory
-completeness).
+Kleene realizability: a carrier `A` with a *partial* application and two
+distinguished elements `k`, `s` from which every "computable" function on `A`
+can be built.
 
-We model partiality with Mathlib's `Part`, so application has type
-`A → A → Part A`.  Two partial values are Kleene-equal exactly when they are
-equal as `Part`s, so we can phrase the combinator laws with ordinary `=`.
+Partiality is modeled with the computable gas monad of
+`LeanExperiments.PCA.Partial`:
 
-This file sets up:
+* the *primitive* application `app : A → A → PComp A` returns a raw (computable)
+  gas computation;
+* the *lifted* application `⬝ : Partial A → Partial A → Partial A` works on
+  partial values (computations up to Kleene equality), so the combinator laws
+  are ordinary equations `=` in `Partial A`.
 
-* `PartialApp`  — a carrier with partial application `· ⬝ ·`;
-* `applyP`      — application lifted to partial values, with notation `⬝`;
-* `PCA`         — the combinator axioms for `k` and `s`.
-
-Concrete instances (starting with the term model of the untyped λ-calculus)
-live in the sibling files.
+Everything is `choice`-free; concrete instances compute.
 -/
 
 namespace LeanExperiments
 
+open scoped LeanExperiments.Partial
+
 universe u
 
 /-- A *partial applicative structure*: a carrier with a partial binary
-application operation.  This is the data underlying a PCA, before imposing
-any axioms. -/
+application, presented as a computable gas computation. -/
 class PartialApp (A : Type u) where
-  /-- Partial application of one element to another. -/
-  app : A → A → Part A
+  /-- Apply one element to another, as a gas computation. -/
+  app : A → A → PComp A
 
 namespace PartialApp
 
-variable {A : Type u} [PartialApp A]
+variable {A : Type u}
 
-/-- Application lifted to partial values, in the Kleene sense: `p ⬝ q` is
-defined only when both `p` and `q` are, and then applies the value of `p` to
-the value of `q`. -/
-def applyP (p q : Part A) : Part A :=
-  p.bind fun f => q.bind fun a => app f a
+/-- Coerce an element to the always-defined partial value with that result.
+Lets us write mixed expressions like `k ⬝ a ⬝ b`. -/
+scoped instance : CoeTail A (Partial A) := ⟨Partial.pure⟩
+
+@[simp] theorem coe_def (a : A) : (↑a : Partial A) = Partial.pure a := rfl
+
+/-- Membership of a coerced element. -/
+@[simp] theorem mem_coe {a w : A} : w ∈ (↑a : Partial A) ↔ w = a := Partial.mem_pure
+
+variable [PartialApp A]
+
+/-- Application lifted to partial values: run `p`, then `q`, then apply the
+results (threading gas throughout). -/
+def applyP (p q : Partial A) : Partial A :=
+  Quotient.lift₂
+    (fun x y => ⟦PComp.bind x fun f => PComp.bind y fun a => app f a⟧ₚ)
+    (fun _ _ _ _ hx hy =>
+      Partial.mk_eq_mk.mpr
+        (PComp.bind_congr hx fun f => PComp.bind_congr hy fun a => PComp.Equiv.refl (app f a)))
+    p q
 
 @[inherit_doc] scoped infixl:70 " ⬝ " => applyP
 
-/-- Coerce an element to the partial value that is always defined with that
-value.  Lets us write mixed expressions like `k ⬝ a ⬝ b`. -/
-scoped instance : CoeTail A (Part A) := ⟨Part.some⟩
+@[simp] theorem applyP_mk {x y : PComp A} :
+    (⟦x⟧ₚ ⬝ ⟦y⟧ₚ : Partial A) = ⟦PComp.bind x fun f => PComp.bind y fun a => app f a⟧ₚ :=
+  rfl
 
-omit [PartialApp A] in
-/-- The coercion `↑a` of an element is the always-defined partial value `some a`. -/
-@[simp] theorem coe_def (a : A) : (↑a : Part A) = Part.some a := rfl
-
-@[simp] theorem applyP_some_some (f a : A) :
-    (Part.some f) ⬝ (Part.some a) = app f a := by
-  simp [applyP]
-
-theorem applyP_dom {p q : Part A} (h : (p ⬝ q).Dom) : p.Dom ∧ q.Dom := by
-  rcases h with ⟨hp, hq, -⟩
-  exact ⟨hp, hq⟩
+/-- Membership through lifted application: `w` is a result of `p ⬝ q` iff `p`
+has a result `f`, `q` has a result `a`, and `w` is a result of `app f a`. -/
+theorem mem_applyP {p q : Partial A} {w : A} :
+    w ∈ (p ⬝ q) ↔ ∃ f a, f ∈ p ∧ a ∈ q ∧ w ∈ app f a := by
+  induction p using Quotient.inductionOn with | _ x =>
+  induction q using Quotient.inductionOn with | _ y =>
+  show (w ∈ PComp.bind x fun f => PComp.bind y fun a => app f a) ↔
+      ∃ f a, f ∈ x ∧ a ∈ y ∧ w ∈ app f a
+  rw [PComp.mem_bind]
+  constructor
+  · rintro ⟨f, hf, hw⟩
+    rw [PComp.mem_bind] at hw
+    obtain ⟨a, ha, hw⟩ := hw
+    exact ⟨f, a, hf, ha, hw⟩
+  · rintro ⟨f, a, hf, ha, hw⟩
+    exact ⟨f, hf, PComp.mem_bind.mpr ⟨a, ha, hw⟩⟩
 
 end PartialApp
 
 open scoped PartialApp
 
 /-- A *partial combinatory algebra*: a partial applicative structure with
-combinators `k` and `s` satisfying the usual laws.  `k` projects to its first
-argument, and `s` is the "substitution"/distribution combinator.  Note that
-`s ⬝ a ⬝ b` must always be defined (it represents the partial function
-`c ↦ (a ⬝ c) ⬝ (b ⬝ c)` waiting for its argument), whereas the right-hand side
-of `s_eq` may diverge. -/
+combinators `k` and `s`.  `k` projects to its first argument; `s` distributes.
+`s ⬝ a ⬝ b` must always be defined (it is `c ↦ (a ⬝ c) ⬝ (b ⬝ c)` waiting for
+its argument), even though the right-hand side of `s_eq` may diverge. -/
 class PCA (A : Type u) extends PartialApp A where
   /-- The projection combinator. -/
   k : A
   /-- The substitution combinator. -/
   s : A
-  /-- `k ⬝ a ⬝ b = a` (which forces `k ⬝ a` to be defined). -/
-  k_eq : ∀ a b : A, (k : Part A) ⬝ a ⬝ b = Part.some a
+  /-- `k ⬝ a ⬝ b = a`. -/
+  k_eq : ∀ a b : A, (k : Partial A) ⬝ a ⬝ b = ↑a
   /-- `s ⬝ a ⬝ b` is always defined. -/
-  s_dom : ∀ a b : A, ((s : Part A) ⬝ a ⬝ b).Dom
-  /-- `s ⬝ a ⬝ b ⬝ c = (a ⬝ c) ⬝ (b ⬝ c)` (Kleene equality). -/
+  s_dom : ∀ a b : A, ((s : Partial A) ⬝ a ⬝ b).Dom
+  /-- `s ⬝ a ⬝ b ⬝ c = (a ⬝ c) ⬝ (b ⬝ c)`. -/
   s_eq : ∀ a b c : A,
-    (s : Part A) ⬝ a ⬝ b ⬝ c = ((a : Part A) ⬝ c) ⬝ ((b : Part A) ⬝ c)
+    (s : Partial A) ⬝ a ⬝ b ⬝ c = ((a : Partial A) ⬝ c) ⬝ ((b : Partial A) ⬝ c)
 
 namespace Combinator
 
 open scoped PartialApp
-open PartialApp (applyP_dom applyP_some_some)
+open PartialApp (mem_applyP coe_def)
 open PCA (k s k_eq s_eq)
 
 variable {A : Type u} [PCA A]
@@ -96,20 +112,20 @@ variable {A : Type u} [PCA A]
 /-- The identity combinator `i = s k k`, as a partial value.  This is the first
 example of *combinatory completeness*: a term built from `s` and `k` that
 realizes a specific function (here, the identity). -/
-def i : Part A := ((s : A) ⬝ (k : A) ⬝ (k : A) : Part A)
+def i : Partial A := ((s : A) ⬝ (k : A) ⬝ (k : A) : Partial A)
 
 /-- `i` is indeed the identity: `i ⬝ a = a` for every `a`. -/
-theorem i_app (a : A) : (i : Part A) ⬝ a = Part.some a := by
-  show ((s : A) ⬝ (k : A) ⬝ (k : A)) ⬝ a = Part.some a
+theorem i_app (a : A) : (i : Partial A) ⬝ a = Partial.pure a := by
+  show ((s : A) ⬝ (k : A) ⬝ (k : A)) ⬝ a = Partial.pure a
   rw [s_eq k k a]
-  have hdom : (((k : A) : Part A) ⬝ (a : A)).Dom := by
-    have h : ((((k : A) : Part A) ⬝ a) ⬝ a).Dom := by rw [k_eq a a]; trivial
-    exact (applyP_dom h).1
-  obtain ⟨ka, hka⟩ := Part.dom_iff_mem.mp hdom
-  have hsome : (((k : A) : Part A) ⬝ a) = Part.some ka := Part.eq_some_iff.mpr hka
-  have h2 := k_eq a ka
-  rw [hsome] at h2 ⊢
-  simpa using h2
+  have hmem : a ∈ ((k : A) : Partial A) ⬝ ↑a ⬝ ↑a := by
+    rw [k_eq a a]; exact Partial.mem_pure.mpr rfl
+  rw [mem_applyP] at hmem
+  obtain ⟨f, _, hf, _, _⟩ := hmem
+  rw [Partial.eq_pure_of_mem hf]
+  have h2 := k_eq a f
+  rw [Partial.eq_pure_of_mem hf] at h2
+  simpa only [coe_def] using h2
 
 end Combinator
 
