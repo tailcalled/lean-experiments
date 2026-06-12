@@ -93,6 +93,10 @@ theorem pure_app (f b : A) :
   · intro hw
     exact ⟨f, b, Partial.mem_pure.mpr rfl, Partial.mem_pure.mpr rfl, hw⟩
 
+theorem mem_pure_app {f a w : A} :
+    w ∈ (Partial.pure f ⬝ Partial.pure a : Partial A) ↔ w ∈ app f a := by
+  rw [pure_app, Partial.mem_mk]
+
 end PartialApp
 
 open scoped PartialApp

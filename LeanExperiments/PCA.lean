@@ -3,6 +3,8 @@ import LeanExperiments.PCA.Basic
 import LeanExperiments.PCA.Abstraction
 import LeanExperiments.PCA.Lambda
 import LeanExperiments.PCA.LambdaAbs
+import LeanExperiments.PCA.Pairing
+import LeanExperiments.PCA.LambdaPairing
 
 /-!
 # Partial combinatory algebras (computable)
@@ -25,4 +27,6 @@ models genuinely run (`#eval`-able); nothing is `noncomputable`.
 * `LeanExperiments.PCA.LambdaAbs` — the closure model's *name-preserving*
   `Abstraction` instance: `abs "x" e` builds a real `closure "x" …`, capturing
   embedded constants under freshly generated env names.
+* `LeanExperiments.PCA.Pairing` — the `Pairing` class (pairing combinator +
+  projections), with the closure model's native instance in `LambdaPairing`.
 -/

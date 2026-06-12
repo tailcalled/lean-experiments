@@ -2,3 +2,5 @@
 -- Import modules here that should be built as part of the library.
 import LeanExperiments.Basic
 import LeanExperiments.PCA
+import LeanExperiments.Realizability
+import LeanExperiments.Realizability.Tripos
