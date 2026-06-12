@@ -114,6 +114,66 @@ def ex_adj_mpr {f : I → J} {φ : Pred A I} {ψ : Pred A J} (h : φ ⊢ subst f
     obtain ⟨b, hb, hb'⟩ := e.2 i a ha
     exact ⟨b, hb, hfi ▸ hb'⟩⟩
 
+/-! ### Universal quantifier (along reindexing)
+
+The realizer of `∀_f φ` at `j` is a *function*: `e ⬝ b` realizes `φ i` for every
+`i` over `j` and every `b`.  This is what makes the right adjoint work over empty
+fibres — the tracker `λa b. e₀ ⬝ a` returns a *closure* (defined even when
+`e₀ ⬝ a` diverges), so an empty fibre is realized vacuously by a defined element. -/
+
+/-- `∀_f φ` at `j`: realized by `e` such that `e ⬝ b` realizes `φ i` for every
+`i` over `j` and every `b`. -/
+def all (f : I → J) (φ : Pred A I) : Pred A J :=
+  fun j e => ∀ i, f i = j → ∀ b, ∃ c, c ∈ (Partial.pure e ⬝ Partial.pure b : Partial A) ∧ φ i c
+
+/-- The tracker `λa. e ⬝ a ⬝ k` for `subst f ⊣ ∀_f`, mpr direction. -/
+def allMprElem (e : A) : A :=
+  Abstraction.abs "a" (Expr.app (Expr.app (Expr.const e) (Expr.var "a")) (Expr.const PCA.k))
+
+theorem allMprElem_spec (e a : A) :
+    (Partial.pure (allMprElem e) ⬝ Partial.pure a : Partial A) =
+      Partial.pure e ⬝ Partial.pure a ⬝ Partial.pure PCA.k := by
+  have h := Abstraction.abs_spec (A := A) "a"
+    (Expr.app (Expr.app (Expr.const e) (Expr.var "a")) (Expr.const PCA.k))
+    (by simp [Expr.closed1, Expr.fvE]) a (fun _ => PCA.k)
+  simpa [Expr.denote_app, Expr.denote_const, Expr.denote_var, Expr.update_same] using h
+
+/-- The tracker `λa b. e ⬝ a` for `subst f ⊣ ∀_f`, mp direction. -/
+def allMpElem (e : A) : A := abs2 "a" "b" (Expr.app (Expr.const e) (Expr.var "a"))
+
+theorem allMpElem_spec (e a b : A) :
+    (Partial.pure (allMpElem e) ⬝ Partial.pure a ⬝ Partial.pure b : Partial A) =
+      Partial.pure e ⬝ Partial.pure a := by
+  rw [allMpElem, abs2_spec "a" "b" _ (by simp [Expr.fvE]) a b (fun _ => PCA.k)]
+  simp [Expr.denote_app, Expr.denote_const, Expr.denote_var, Expr.update]
+
+theorem allMpElem_app1 (e a : A) :
+    ∃ f, (Partial.pure (allMpElem e) ⬝ Partial.pure a : Partial A) = Partial.pure f :=
+  abs2_app1 "a" "b" _ (by simp [Expr.fvE]) a (fun _ => PCA.k)
+
+/-- `subst f ⊣ ∀_f`, one direction. -/
+def all_adj_mp {f : I → J} {φ : Pred A I} {ψ : Pred A J} (h : subst f ψ ⊢ φ) :
+    ψ ⊢ all f φ :=
+  Squash.lift h fun e₀ =>
+    Squash.mk ⟨allMpElem e₀.1, fun j a hja => by
+      obtain ⟨E, hE⟩ := allMpElem_app1 e₀.1 a
+      refine ⟨E, by rw [hE]; exact Partial.mem_pure.mpr rfl, fun i hfi b => ?_⟩
+      have hEb : (Partial.pure E ⬝ Partial.pure b : Partial A) = Partial.pure e₀.1 ⬝ Partial.pure a := by
+        rw [← hE, allMpElem_spec]
+      obtain ⟨c, hc, hc'⟩ := e₀.2 i a (show ψ (f i) a from hfi ▸ hja)
+      exact ⟨c, by rw [hEb]; exact hc, hc'⟩⟩
+
+/-- `subst f ⊣ ∀_f`, the other direction. -/
+def all_adj_mpr {f : I → J} {φ : Pred A I} {ψ : Pred A J} (h : ψ ⊢ all f φ) :
+    subst f ψ ⊢ φ :=
+  Squash.lift h fun e' =>
+    Squash.mk ⟨allMprElem e'.1, fun i a ha => by
+      obtain ⟨E, hE, hE'⟩ := e'.2 (f i) a ha
+      obtain ⟨c, hc, hc'⟩ := hE' i rfl PCA.k
+      refine ⟨c, ?_, hc'⟩
+      rw [allMprElem_spec, Partial.eq_pure_of_mem hE]
+      exact hc⟩
+
 /-! ### Conjunction (needs pairing) -/
 
 section
