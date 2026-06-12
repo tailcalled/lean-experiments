@@ -166,6 +166,67 @@ def le_conj {χ φ ψ : Pred A I} (h₁ : χ ⊢ φ) (h₂ : χ ⊢ ψ) : χ ⊢
       rw [pairOf_spec, Partial.eq_pure_of_mem ha, Partial.eq_pure_of_mem hb]
       exact hc⟩
 
+/-! ### Heyting implication adjunction -/
+
+/-- The realizer for `c ↦ e ⬝ (fst c) ⬝ (snd c)` (uncurrying). -/
+def uncurryElem (e : A) : A :=
+  Abstraction.abs "c"
+    (Expr.app (Expr.app (Expr.const e) (Expr.app (Expr.const Pairing.fst) (Expr.var "c")))
+      (Expr.app (Expr.const Pairing.snd) (Expr.var "c")))
+
+theorem uncurryElem_spec (e c : A) :
+    (Partial.pure (uncurryElem e) ⬝ Partial.pure c : Partial A) =
+      Partial.pure e ⬝ (Partial.pure Pairing.fst ⬝ Partial.pure c) ⬝
+        (Partial.pure Pairing.snd ⬝ Partial.pure c) := by
+  have h := Abstraction.abs_spec (A := A) "c"
+    (Expr.app (Expr.app (Expr.const e) (Expr.app (Expr.const Pairing.fst) (Expr.var "c")))
+      (Expr.app (Expr.const Pairing.snd) (Expr.var "c")))
+    (by simp [Expr.closed1, Expr.fvE]) c (fun _ => PCA.k)
+  simpa [Expr.denote_app, Expr.denote_const, Expr.denote_var, Expr.update_same] using h
+
+/-- The realizer for `d ↦ λa. e ⬝ (pair d a)` (currying). -/
+def curryElem (e : A) : A :=
+  abs2 "d" "a"
+    (Expr.app (Expr.const e)
+      (Expr.app (Expr.app (Expr.const Pairing.pair) (Expr.var "d")) (Expr.var "a")))
+
+theorem curryElem_app1 (e d : A) :
+    ∃ f, (Partial.pure (curryElem e) ⬝ Partial.pure d : Partial A) = Partial.pure f :=
+  abs2_app1 "d" "a" _ (by simp [Expr.fvE]) d (fun _ => PCA.k)
+
+theorem curryElem_spec (e d a : A) :
+    (Partial.pure (curryElem e) ⬝ Partial.pure d ⬝ Partial.pure a : Partial A) =
+      Partial.pure e ⬝ (Partial.pure Pairing.pair ⬝ Partial.pure d ⬝ Partial.pure a) := by
+  rw [curryElem, abs2_spec "d" "a" _ (by simp [Expr.fvE]) d a (fun _ => PCA.k)]
+  simp [Expr.denote_app, Expr.denote_const, Expr.denote_var, Expr.update]
+
+/-- `χ ∧ φ ⊢ ψ → χ ⊢ (φ → ψ)`. -/
+def curry {χ φ ψ : Pred A I} (h : conj χ φ ⊢ ψ) : χ ⊢ impl φ ψ :=
+  Squash.lift h fun e =>
+    Squash.mk ⟨curryElem e.1, fun i d hd => by
+      obtain ⟨f, hf⟩ := curryElem_app1 e.1 d
+      refine ⟨f, by rw [hf]; exact Partial.mem_pure.mpr rfl, fun a ha => ?_⟩
+      obtain ⟨c, hc⟩ := Pairing.pair_total d a
+      obtain ⟨b, hb, hb'⟩ := e.2 i c ⟨d, a, hd, ha, hc⟩
+      refine ⟨b, ?_, hb'⟩
+      rw [← hf, curryElem_spec, Partial.eq_pure_of_mem hc]
+      exact hb⟩
+
+/-- `χ ⊢ (φ → ψ) → χ ∧ φ ⊢ ψ`. -/
+def uncurry {χ φ ψ : Pred A I} (h : χ ⊢ impl φ ψ) : conj χ φ ⊢ ψ :=
+  Squash.lift h fun e =>
+    Squash.mk ⟨uncurryElem e.1, fun i c hc => by
+      obtain ⟨d, a, hd, ha, hcda⟩ := hc
+      obtain ⟨g, hg, hg'⟩ := e.2 i d hd
+      obtain ⟨b, hb, hb'⟩ := hg' a ha
+      refine ⟨b, ?_, hb'⟩
+      have hfst : (Partial.pure Pairing.fst ⬝ Partial.pure c : Partial A) = Partial.pure d := by
+        have := Pairing.fst_pair d a; rwa [Partial.eq_pure_of_mem hcda] at this
+      have hsnd : (Partial.pure Pairing.snd ⬝ Partial.pure c : Partial A) = Partial.pure a := by
+        have := Pairing.snd_pair d a; rwa [Partial.eq_pure_of_mem hcda] at this
+      rw [uncurryElem_spec, hfst, hsnd, Partial.eq_pure_of_mem hg]
+      exact hb⟩
+
 end
 
 end Pred

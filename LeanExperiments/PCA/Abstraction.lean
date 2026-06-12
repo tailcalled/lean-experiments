@@ -174,6 +174,33 @@ theorem bracket_correct (x : String) (e : Expr A) (a : A) (ρ : String → A) :
     simp only [denote_app, denote_const, hb₁, hb₂]
     rw [s_eq_pure b₁ b₂ a, ← hb₁, ← hb₂, ih₁, ih₂]
 
+/-- `bracket y` removes exactly `y` from the free variables. -/
+theorem fvE_bracket (y : String) (e : Expr A) {z : String} (hz : z ∈ fvE (bracket y e)) :
+    z ∈ fvE e ∧ z ≠ y := by
+  induction e with
+  | var w =>
+    by_cases h : w = y
+    · subst h; simp [bracket, fvE] at hz
+    · simp only [bracket, if_neg h, fvE, List.mem_append, List.not_mem_nil,
+        List.mem_singleton, false_or] at hz
+      subst hz; exact ⟨by simp [fvE], h⟩
+  | const c => simp [bracket, fvE] at hz
+  | app e₁ e₂ ih₁ ih₂ =>
+    simp only [bracket, fvE, List.mem_append, List.not_mem_nil, false_or] at hz
+    rcases hz with hz | hz
+    · obtain ⟨h₁, h₂⟩ := ih₁ hz; exact ⟨by simp [fvE, h₁], h₂⟩
+    · obtain ⟨h₁, h₂⟩ := ih₂ hz; exact ⟨by simp [fvE, h₁], h₂⟩
+
+/-- If `e`'s free variables are among `{x, y}`, then `bracket y e` has at most
+`x` free. -/
+theorem closed1_bracket {x y : String} {e : Expr A}
+    (hc : ∀ z ∈ fvE e, z = x ∨ z = y) : closed1 x (bracket y e) := by
+  intro z hz
+  obtain ⟨h₁, h₂⟩ := fvE_bracket y e hz
+  rcases hc z h₁ with h | h
+  · exact h
+  · exact absurd h h₂
+
 end
 
 end Expr
@@ -190,5 +217,54 @@ class Abstraction (A : Type u) [PCA A] where
   /-- `abs x e` realizes `a ↦ e` of `x` (for `e` with at most `x` free). -/
   abs_spec : ∀ (x : String) (e : Expr A), Expr.closed1 x e → ∀ (a : A) (ρ : String → A),
     (Partial.pure (abs x e) ⬝ Partial.pure a : Partial A) = e.denote (Expr.update ρ x a)
+
+/-! ### Multi-variable abstraction
+
+Derived from single-variable `abs` by bracket-abstracting the *inner* variables
+first (so only the outer one is left free), then `abs`-ing the outer one.  The
+spec composes `abs_spec` with `bracket_correct`. -/
+
+section
+variable {A : Type u} [PCA A] [Abstraction A]
+open scoped LeanExperiments.PartialApp
+
+/-- Two-variable abstraction `λx y. e`. -/
+def abs2 (x y : String) (e : Expr A) : A := Abstraction.abs x (Expr.bracket y e)
+
+theorem abs2_spec (x y : String) (e : Expr A) (hc : ∀ z ∈ Expr.fvE e, z = x ∨ z = y)
+    (a b : A) (ρ : String → A) :
+    (Partial.pure (abs2 x y e) ⬝ Partial.pure a ⬝ Partial.pure b : Partial A) =
+      e.denote (Expr.update (Expr.update ρ x a) y b) := by
+  rw [abs2, Abstraction.abs_spec x (Expr.bracket y e) (Expr.closed1_bracket hc) a ρ]
+  exact Expr.bracket_correct y e b (Expr.update ρ x a)
+
+/-- The first application of a two-variable abstraction is already total. -/
+theorem abs2_app1 (x y : String) (e : Expr A) (hc : ∀ z ∈ Expr.fvE e, z = x ∨ z = y)
+    (a : A) (ρ : String → A) :
+    ∃ f, (Partial.pure (abs2 x y e) ⬝ Partial.pure a : Partial A) = Partial.pure f := by
+  rw [abs2, Abstraction.abs_spec x (Expr.bracket y e) (Expr.closed1_bracket hc) a ρ]
+  exact Expr.bracket_total y e (Expr.update ρ x a)
+
+/-- Three-variable abstraction `λx y z. e`. -/
+def abs3 (x y z : String) (e : Expr A) : A :=
+  Abstraction.abs x (Expr.bracket y (Expr.bracket z e))
+
+theorem abs3_spec (x y z : String) (e : Expr A)
+    (hc : ∀ w ∈ Expr.fvE e, w = x ∨ w = y ∨ w = z) (a b c : A) (ρ : String → A) :
+    (Partial.pure (abs3 x y z e) ⬝ Partial.pure a ⬝ Partial.pure b ⬝ Partial.pure c : Partial A) =
+      e.denote (Expr.update (Expr.update (Expr.update ρ x a) y b) z c) := by
+  have hc' : ∀ w ∈ Expr.fvE (Expr.bracket z e), w = x ∨ w = y := by
+    intro w hw
+    obtain ⟨h₁, h₂⟩ := Expr.fvE_bracket z e hw
+    rcases hc w h₁ with h | h | h
+    · exact Or.inl h
+    · exact Or.inr h
+    · exact absurd h h₂
+  rw [abs3,
+    Abstraction.abs_spec x (Expr.bracket y (Expr.bracket z e)) (Expr.closed1_bracket hc') a ρ,
+    Expr.bracket_correct y (Expr.bracket z e) b (Expr.update ρ x a)]
+  exact Expr.bracket_correct z e c (Expr.update (Expr.update ρ x a) y b)
+
+end
 
 end LeanExperiments
