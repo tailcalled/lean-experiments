@@ -1,5 +1,6 @@
 import LeanExperiments.Realizability
 import LeanExperiments.PCA.Pairing
+import LeanExperiments.PCA.Tagging
 
 /-!
 # The realizability tripos (concrete)
@@ -226,6 +227,58 @@ def uncurry {χ φ ψ : Pred A I} (h : χ ⊢ impl φ ψ) : conj χ φ ⊢ ψ :=
         have := Pairing.snd_pair d a; rwa [Partial.eq_pure_of_mem hcda] at this
       rw [uncurryElem_spec, hfst, hsnd, Partial.eq_pure_of_mem hg]
       exact hb⟩
+
+end
+
+/-! ### Disjunction (needs tagging) -/
+
+section
+variable [Tagging A]
+
+/-- Disjunction: realized by a left-tag of a `φ`-realizer or a right-tag of a
+`ψ`-realizer. -/
+def disj (φ ψ : Pred A I) : Pred A I :=
+  fun i c => (∃ a, φ i a ∧ c ∈ (Partial.pure Tagging.inl ⬝ Partial.pure a : Partial A)) ∨
+             (∃ b, ψ i b ∧ c ∈ (Partial.pure Tagging.inr ⬝ Partial.pure b : Partial A))
+
+/-- The case-analysis realizer `λc. c ⬝ p ⬝ q`. -/
+def caseOf (p q : A) : A :=
+  Abstraction.abs "c" (Expr.app (Expr.app (Expr.var "c") (Expr.const p)) (Expr.const q))
+
+omit [Tagging A] in
+theorem caseOf_spec (p q c : A) :
+    (Partial.pure (caseOf p q) ⬝ Partial.pure c : Partial A) =
+      Partial.pure c ⬝ Partial.pure p ⬝ Partial.pure q := by
+  have h := Abstraction.abs_spec (A := A) "c"
+    (Expr.app (Expr.app (Expr.var "c") (Expr.const p)) (Expr.const q))
+    (by simp [Expr.closed1, Expr.fvE]) c (fun _ => PCA.k)
+  simpa [Expr.denote_app, Expr.denote_const, Expr.denote_var, Expr.update_same] using h
+
+/-- `φ ⊢ φ ∨ ψ`, tracked by `inl`. -/
+def inl_le (φ ψ : Pred A I) : φ ⊢ disj φ ψ :=
+  Squash.mk ⟨Tagging.inl, fun _ a ha => by
+    obtain ⟨c, hc⟩ := Tagging.inl_total a
+    exact ⟨c, hc, Or.inl ⟨a, ha, hc⟩⟩⟩
+
+/-- `ψ ⊢ φ ∨ ψ`, tracked by `inr`. -/
+def inr_le (φ ψ : Pred A I) : ψ ⊢ disj φ ψ :=
+  Squash.mk ⟨Tagging.inr, fun _ b hb => by
+    obtain ⟨c, hc⟩ := Tagging.inr_total b
+    exact ⟨c, hc, Or.inr ⟨b, hb, hc⟩⟩⟩
+
+/-- The universal property of `∨`: `φ ⊢ χ` and `ψ ⊢ χ` give `φ ∨ ψ ⊢ χ`. -/
+def disj_le {φ ψ χ : Pred A I} (h₁ : φ ⊢ χ) (h₂ : ψ ⊢ χ) : disj φ ψ ⊢ χ :=
+  Squash.lift h₁ fun p => Squash.lift h₂ fun q =>
+    Squash.mk ⟨caseOf p.1 q.1, fun i c hc => by
+      rcases hc with ⟨a, ha, hca⟩ | ⟨b, hb, hcb⟩
+      · obtain ⟨d, hd, hd'⟩ := p.2 i a ha
+        refine ⟨d, ?_, hd'⟩
+        rw [caseOf_spec, ← Partial.eq_pure_of_mem hca, Tagging.inl_apply a p.1 q.1]
+        exact hd
+      · obtain ⟨d, hd, hd'⟩ := q.2 i b hb
+        refine ⟨d, ?_, hd'⟩
+        rw [caseOf_spec, ← Partial.eq_pure_of_mem hcb, Tagging.inr_apply b p.1 q.1]
+        exact hd⟩
 
 end
 

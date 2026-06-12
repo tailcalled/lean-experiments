@@ -5,6 +5,8 @@ import LeanExperiments.PCA.Lambda
 import LeanExperiments.PCA.LambdaAbs
 import LeanExperiments.PCA.Pairing
 import LeanExperiments.PCA.LambdaPairing
+import LeanExperiments.PCA.Tagging
+import LeanExperiments.PCA.LambdaTagging
 
 /-!
 # Partial combinatory algebras (computable)

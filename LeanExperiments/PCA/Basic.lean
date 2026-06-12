@@ -97,6 +97,13 @@ theorem mem_pure_app {f a w : A} :
     w ∈ (Partial.pure f ⬝ Partial.pure a : Partial A) ↔ w ∈ app f a := by
   rw [pure_app, Partial.mem_mk]
 
+/-- If `p ⬝ q` is defined, so is `p`. -/
+theorem dom_of_applyP {p q : Partial A} (h : (p ⬝ q).Dom) : p.Dom := by
+  obtain ⟨w, hw⟩ := h
+  rw [mem_applyP] at hw
+  obtain ⟨f, _, hf, _, _⟩ := hw
+  exact ⟨f, hf⟩
+
 end PartialApp
 
 open scoped PartialApp
