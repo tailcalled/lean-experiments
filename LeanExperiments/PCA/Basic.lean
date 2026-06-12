@@ -80,6 +80,19 @@ theorem mem_applyP {p q : Partial A} {w : A} :
   · rintro ⟨f, a, hf, ha, hw⟩
     exact ⟨f, hf, PComp.mem_bind.mpr ⟨a, ha, hw⟩⟩
 
+/-- Applying two total values is the (raw) application of their results. -/
+theorem pure_app (f b : A) :
+    (Partial.pure f ⬝ Partial.pure b : Partial A) = Partial.mk (app f b) := by
+  apply Partial.ext
+  intro w
+  rw [mem_applyP, Partial.mem_mk]
+  constructor
+  · rintro ⟨g, c, hg, hc, hw⟩
+    rw [Partial.mem_pure] at hg hc
+    subst hg; subst hc; exact hw
+  · intro hw
+    exact ⟨f, b, Partial.mem_pure.mpr rfl, Partial.mem_pure.mpr rfl, hw⟩
+
 end PartialApp
 
 open scoped PartialApp
