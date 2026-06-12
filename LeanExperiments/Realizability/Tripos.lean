@@ -1,4 +1,5 @@
 import LeanExperiments.Realizability
+import LeanExperiments.Realizability.TriposClass
 import LeanExperiments.PCA.Pairing
 import LeanExperiments.PCA.Tagging
 
@@ -367,5 +368,47 @@ theorem subst_generic {I : Type w} (φ : Pred A I) :
     subst (J := Prop' A) φ generic = φ := rfl
 
 end Pred
+
+/-! ### The realizability fibres assemble into a `Tripos`
+
+Everything proved fibrewise above is exactly the data of the abstract `Tripos`
+interface; the instance is pure plumbing.  The Heyting connectives need the
+pairing/tagging combinators, so the instance asks for `[Pairing A] [Tagging A]`
+(both supplied natively by the closure model). -/
+
+instance instTripos [Pairing A] [Tagging A] : Tripos (Pred A) where
+  entails := Pred.Entails
+  entails_subsingleton := fun _ _ => inferInstance
+  le_refl := Pred.Entails.refl
+  le_trans := Pred.Entails.trans
+  subst := Pred.subst
+  subst_mono := Pred.subst_mono
+  subst_id := fun _ => rfl
+  subst_comp := fun _ _ _ => rfl
+  top := Pred.top
+  le_top := Pred.le_top
+  bot := Pred.bot
+  bot_le := Pred.bot_le
+  conj := Pred.conj
+  conj_le_left := Pred.conj_le_left
+  conj_le_right := Pred.conj_le_right
+  le_conj := Pred.le_conj
+  disj := Pred.disj
+  left_le_disj := Pred.inl_le
+  right_le_disj := Pred.inr_le
+  disj_le := Pred.disj_le
+  impl := Pred.impl
+  curry := Pred.curry
+  uncurry := Pred.uncurry
+  ex := Pred.ex
+  ex_adj_mp := Pred.ex_adj_mp
+  ex_adj_mpr := Pred.ex_adj_mpr
+  all := Pred.all
+  all_adj_mp := Pred.all_adj_mp
+  all_adj_mpr := Pred.all_adj_mpr
+  Prop' := Prop' A
+  generic := Pred.generic
+  char := fun φ => φ
+  subst_char := Pred.subst_generic
 
 end LeanExperiments.Realizability
