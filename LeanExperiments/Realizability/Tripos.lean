@@ -29,12 +29,16 @@ namespace LeanExperiments.Realizability
 open LeanExperiments
 open scoped LeanExperiments.Partial LeanExperiments.PartialApp
 
-universe u w
+universe u w v
 
 variable {A : Type u} [PCA A] [Abstraction A]
 
 /-- A predicate over `I`, valued in sets of realizers. -/
 def Pred (A : Type u) (I : Type w) : Type (max u w) := I → A → Prop
+
+/-- The tripos's object of truth values: sets of realizers (`𝒫 A`).  Note
+`Pred A I = I → 𝒫 A`, so a predicate over `I` *is* a map `I → 𝒫 A`. -/
+def Prop' (A : Type u) : Type u := A → Prop
 
 namespace Pred
 
@@ -68,7 +72,7 @@ def Entails.trans {φ ψ χ : Pred A I} (h₁ : φ ⊢ ψ) (h₂ : ψ ⊢ χ) : 
 /-! ### Reindexing -/
 
 /-- Reindexing a predicate along a function. -/
-def subst (f : I → J) (ψ : Pred A J) : Pred A I := fun i => ψ (f i)
+def subst {J : Type v} (f : I → J) (ψ : Pred A J) : Pred A I := fun i => ψ (f i)
 
 /-- Reindexing is monotone (the same realizer works). -/
 def subst_mono (f : I → J) {φ ψ : Pred A J} (h : φ ⊢ ψ) : subst f φ ⊢ subst f ψ :=
@@ -341,6 +345,26 @@ def disj_le {φ ψ χ : Pred A I} (h₁ : φ ⊢ χ) (h₂ : ψ ⊢ χ) : disj �
         exact hd⟩
 
 end
+
+/-! ### The generic predicate (weak subobject classifier)
+
+The realizability tripos is *generic*: there is a distinguished object of truth
+values `Prop' A = 𝒫 A` carrying a predicate `generic`, through which every
+predicate factors.  Because `Pred A I = I → 𝒫 A` definitionally, a predicate
+`φ : Pred A I` *is* its own characteristic map `I → Prop' A`, and reindexing
+`generic` along it recovers `φ` *on the nose* — comprehension holds as an
+equality, not merely up to entailment. -/
+
+/-- The generic predicate over `𝒫 A`: a realizer `a` realizes the "proposition"
+`S : 𝒫 A` exactly when `a ∈ S`.  (As a function it is `id : 𝒫 A → 𝒫 A`.) -/
+def generic : Pred A (Prop' A) := fun S a => S a
+
+omit [PCA A] [Abstraction A] in
+/-- **Comprehension.**  Every predicate `φ : Pred A I` is the reindexing of the
+generic predicate along its characteristic map — and that map is `φ` itself,
+since `Pred A I = I → Prop' A`.  The factorization is a definitional equality. -/
+theorem subst_generic {I : Type w} (φ : Pred A I) :
+    subst (J := Prop' A) φ generic = φ := rfl
 
 end Pred
 
