@@ -1046,6 +1046,160 @@ def truthFunRel : FunRel (terminal : PER P) (omega : PER P) where
 /-- The truth morphism `⊤ : 𝟙 → Ω`. -/
 def Hom.truth : Hom (terminal : PER P) (omega : PER P) := Quotient.mk _ truthFunRel
 
+/-! ### Subobjects and the characteristic morphism -/
+
+/-- A **subobject** of `X`: a predicate that is *strict* (`φ(x) ⊢ x` exists) and
+*`ρ_X`-closed* (`φ(x) ∧ x ~ x' ⊢ φ(x')`).  These are exactly the monos into `X`. -/
+structure StrictPred (X : PER P) where
+  /-- The defining predicate. -/
+  pred : P X.carrier
+  /-- Strictness: members exist. -/
+  strict : pred ⊢ subst (fun x : X.carrier => (x, x)) X.rel
+  /-- Closure under `ρ_X`. -/
+  closed : conj (subst (Prod.fst : X.carrier × X.carrier → X.carrier) pred) X.rel
+    ⊢ subst (Prod.snd : X.carrier × X.carrier → X.carrier) pred
+
+/-- The relation of the characteristic morphism `χ_φ : X → Ω`: relate `x` to the
+proposition `S` iff `x` exists and `S ↔ φ(x)`. -/
+def charRel (φ : StrictPred X) : P (X.carrier × Prop' P) :=
+  conj (subst (fun p : X.carrier × Prop' P => (p.1, p.1)) X.rel)
+       (conj (impl (subst Prod.fst φ.pred) (subst Prod.snd (@Tripos.generic P _)))
+             (impl (subst Prod.snd (@Tripos.generic P _)) (subst Prod.fst φ.pred)))
+
+/-- `χ_φ` is strict in the domain (its members exist). -/
+def charRel_strict_dom (φ : StrictPred X) :
+    charRel φ ⊢ subst (fun p : X.carrier × Prop' P => (p.1, p.1)) X.rel :=
+  conj_le_left _ _
+
+/-- `χ_φ` is strict in the codomain (lands in `Ω`). -/
+def charRel_strict_cod (φ : StrictPred X) :
+    charRel φ ⊢ subst (fun p : X.carrier × Prop' P => (p.2, p.2)) (omega : PER P).rel := by
+  simp only [charRel, omega, subst_conj, subst_impl, ← subst_comp]
+  exact le_conj
+    (le_trans (le_conj (le_trans (conj_le_right _ _) (conj_le_right _ _))
+      (le_trans (conj_le_right _ _) (conj_le_left _ _))) (impl_trans _ _ _))
+    (le_trans (le_conj (le_trans (conj_le_right _ _) (conj_le_right _ _))
+      (le_trans (conj_le_right _ _) (conj_le_left _ _))) (impl_trans _ _ _))
+
+/-- `χ_φ` is single-valued. -/
+def charRel_single (φ : StrictPred X) :
+    conj (subst (fun t : X.carrier × Prop' P × Prop' P => (t.1, t.2.1)) (charRel φ))
+         (subst (fun t => (t.1, t.2.2)) (charRel φ))
+      ⊢ subst (fun t : X.carrier × Prop' P × Prop' P => (t.2.1, t.2.2)) (omega : PER P).rel := by
+  simp only [charRel, omega, subst_conj, subst_impl, ← subst_comp]
+  exact le_conj
+    (le_trans (le_conj
+      (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (conj_le_right _ _))
+      (le_trans (le_trans (conj_le_right _ _) (conj_le_right _ _)) (conj_le_left _ _)))
+      (impl_trans _ _ _))
+    (le_trans (le_conj
+      (le_trans (le_trans (conj_le_right _ _) (conj_le_right _ _)) (conj_le_right _ _))
+      (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (conj_le_left _ _)))
+      (impl_trans _ _ _))
+
+/-- `χ_φ` is total: every existing `x` is sent somewhere (namely to `φ(x)`). -/
+def charRel_total (φ : StrictPred X) :
+    subst (fun x : X.carrier => (x, x)) X.rel
+      ⊢ ex (Prod.fst : X.carrier × Prop' P → X.carrier) (charRel φ) := by
+  have hu := subst_mono (fun x : X.carrier => (x, @Tripos.char P _ X.carrier φ.pred x))
+    (ex_unit (Prod.fst : X.carrier × Prop' P → X.carrier) (charRel φ))
+  simp only [← subst_comp] at hu
+  refine le_trans ?_ (le_trans hu (subst_id_le _))
+  simp only [charRel, subst_conj, subst_impl, ← subst_comp]
+  refine le_conj (le_refl _) ?_
+  rw [show (Prod.fst ∘ fun x : X.carrier => (x, @Tripos.char P _ X.carrier φ.pred x)) = id from rfl,
+    show (Prod.snd ∘ fun x : X.carrier => (x, @Tripos.char P _ X.carrier φ.pred x))
+      = @Tripos.char P _ X.carrier φ.pred from rfl, subst_id, subst_char]
+  exact le_trans (le_top _) (le_conj (id_impl _) (id_impl _))
+
+/-- `χ_φ` is relational (extensional): respects `ρ_X` and `↔`. -/
+def charRel_cong (φ : StrictPred X) :
+    conj (conj (subst (fun t : X.carrier × X.carrier × Prop' P × Prop' P => (t.1, t.2.2.1)) (charRel φ))
+               (subst (fun t => (t.1, t.2.1)) X.rel))
+         (subst (fun t => (t.2.2.1, t.2.2.2)) (omega : PER P).rel)
+      ⊢ subst (fun t : X.carrier × X.carrier × Prop' P × Prop' P => (t.2.1, t.2.2.2)) (charRel φ) := by
+  simp only [charRel, omega, subst_conj, subst_impl, ← subst_comp]
+  have hclosed1 := subst_mono
+    (fun t : X.carrier × X.carrier × Prop' P × Prop' P => (t.1, t.2.1)) φ.closed
+  have hclosed2 := subst_mono
+    (fun t : X.carrier × X.carrier × Prop' P × Prop' P => (t.2.1, t.1)) φ.closed
+  simp only [subst_conj, ← subst_comp] at hclosed1 hclosed2
+  refine le_conj ?_ (le_conj ?_ ?_)
+  · -- E_X(x')
+    exact le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _))
+      (X.refl_right_at (K := X.carrier × X.carrier × Prop' P × Prop' P)
+        (fun t => t.1) (fun t => t.2.1))
+  · -- impl φx' Sa' : φx' → φx → Sa → Sa'
+    exact le_trans (le_conj
+      (le_trans (le_conj
+        (curry (le_trans (le_conj (conj_le_right _ _)
+          (le_trans (conj_le_left _ _) (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _))
+            (X.symm_at (K := X.carrier × X.carrier × Prop' P × Prop' P)
+              (fun t => t.1) (fun t => t.2.1))))) hclosed2))
+        (le_trans (le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_right _ _))
+          (conj_le_left _ _)))
+        (impl_trans _ _ _))
+      (le_trans (conj_le_right _ _) (conj_le_left _ _)))
+      (impl_trans _ _ _)
+  · -- impl Sa' φx' : Sa' → Sa → φx → φx'
+    exact le_trans (le_conj
+      (le_trans (le_conj
+        (le_trans (conj_le_right _ _) (conj_le_right _ _))
+        (le_trans (le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_right _ _))
+          (conj_le_right _ _)))
+        (impl_trans _ _ _))
+      (curry (le_trans (le_conj (conj_le_right _ _)
+        (le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _) (conj_le_right _ _)))) hclosed1)))
+      (impl_trans _ _ _)
+
+/-- The characteristic morphism `χ_φ : X → Ω` of a subobject `φ`. -/
+def charFunRel (φ : StrictPred X) : FunRel X (omega : PER P) where
+  rel := charRel φ
+  strict_dom := charRel_strict_dom φ
+  strict_cod := charRel_strict_cod φ
+  cong := charRel_cong φ
+  single := charRel_single φ
+  total := charRel_total φ
+
+/-- The characteristic morphism as a `Hom`. -/
+def Hom.char (φ : StrictPred X) : Hom X (omega : PER P) := Quotient.mk _ (charFunRel φ)
+
+/-- The predicate recovered from a morphism `χ : X → Ω`: `x` is a member iff
+`χ(x)` is a true proposition.  (This is the pullback of `⊤` along `χ`.) -/
+def predOfFunRel (χ : FunRel X (omega : PER P)) : P X.carrier :=
+  ex (Prod.fst : X.carrier × Prop' P → X.carrier)
+     (conj χ.rel (subst (fun p : X.carrier × Prop' P => p.2) (@Tripos.generic P _)))
+
+/-- Classification (one round-trip), `⊢`: recovering a subobject from its own
+characteristic map gives back the subobject. -/
+def predOfFunRel_char_le (φ : StrictPred X) : predOfFunRel (charFunRel φ) ⊢ φ.pred := by
+  refine ex_adj_mpr ?_
+  simp only [charFunRel, charRel, subst_conj, subst_impl, ← subst_comp]
+  exact le_trans (le_conj
+    (le_trans (conj_le_left _ _) (le_trans (conj_le_right _ _) (conj_le_right _ _)))
+    (conj_le_right _ _)) (impl_mp _ _)
+
+/-- Classification (one round-trip), `⊇`. -/
+def predOfFunRel_char_ge (φ : StrictPred X) : φ.pred ⊢ predOfFunRel (charFunRel φ) := by
+  have hu := subst_mono (fun x : X.carrier => (x, @Tripos.char P _ X.carrier φ.pred x))
+    (ex_unit (Prod.fst : X.carrier × Prop' P → X.carrier)
+      (conj (charFunRel φ).rel (subst (fun p : X.carrier × Prop' P => p.2) (@Tripos.generic P _))))
+  simp only [← subst_comp] at hu
+  refine le_trans ?_ (le_trans hu (subst_id_le _))
+  simp only [charFunRel, charRel, subst_conj, subst_impl, ← subst_comp]
+  rw [show (Prod.fst ∘ fun x : X.carrier => (x, @Tripos.char P _ X.carrier φ.pred x)) = id from rfl,
+    show (Prod.snd ∘ fun x : X.carrier => (x, @Tripos.char P _ X.carrier φ.pred x))
+      = @Tripos.char P _ X.carrier φ.pred from rfl, subst_id, subst_char]
+  exact le_conj (le_conj φ.strict (le_trans (le_top _) (le_conj (id_impl _) (id_impl _))))
+    (le_refl _)
+
+/-- The recovered predicate is strict: its members exist. -/
+def predOfFunRel_strict (χ : FunRel X (omega : PER P)) :
+    predOfFunRel χ ⊢ subst (fun x : X.carrier => (x, x)) X.rel := by
+  refine ex_adj_mpr ?_
+  rw [← subst_comp]
+  exact le_trans (conj_le_left _ _) χ.strict_dom
+
 end Tripos
 
 end LeanExperiments.Realizability

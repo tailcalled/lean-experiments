@@ -190,6 +190,14 @@ def conj_assoc_left {I : Type u} (φ ψ θ : P I) :
 def conj_comm {I : Type u} (φ ψ : P I) : entails (conj φ ψ) (conj ψ φ) :=
   le_conj (conj_le_right φ ψ) (conj_le_left φ ψ)
 
+/-- `⊤ ⊢ (φ → φ)`: implication is reflexive. -/
+def id_impl {I : Type u} (φ : P I) : entails (top : P I) (impl φ φ) :=
+  curry (conj_le_right _ _)
+
+/-- Modus ponens: `(φ → ψ) ∧ φ ⊢ ψ`. -/
+def impl_mp {I : Type u} (φ ψ : P I) : entails (conj (impl φ ψ) φ) ψ :=
+  uncurry (le_refl _)
+
 /-- Implication composes: `(φ → ψ) ∧ (ψ → θ) ⊢ (φ → θ)`. -/
 def impl_trans {I : Type u} (φ ψ θ : P I) :
     entails (conj (impl φ ψ) (impl ψ θ)) (impl φ θ) := by
