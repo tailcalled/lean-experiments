@@ -226,6 +226,29 @@ def subst_ex_elim {I J K : Type u} (f : I → J) (g : K → J) {φ : P I} {ψ : 
     entails (subst g (ex f φ)) ψ :=
   le_trans (beck_chevalley f g φ) (ex_adj_mpr h)
 
+/-- Beck–Chevalley for an existential over the *middle* factor, reindexed along
+`g : K → A × C` into the outer product.  `subst g (∃b. φ(a, b, c))` becomes a
+clean existential `∃b. φ((g·).1, b, (g·).2)` over `K × B` — no pullback subtype
+leaks out, which is what makes composing functional relations manageable. -/
+def subst_ex_mid {A B C K : Type u} (g : K → A × C) (φ : P (A × B × C)) :
+    entails (subst g (ex (fun d : A × B × C => (d.1, d.2.2)) φ))
+            (ex (Prod.fst : K × B → K)
+                (subst (fun p : K × B => ((g p.1).1, p.2, (g p.1).2)) φ)) := by
+  refine subst_ex_elim (fun d : A × B × C => (d.1, d.2.2)) g ?_
+  have hu := subst_mono
+    (fun s : { p : K × (A × B × C) // g p.1 = ((fun d : A × B × C => (d.1, d.2.2)) p.2) } =>
+      (s.1.1, s.1.2.2.1))
+    (ex_unit (Prod.fst : K × B → K) (subst (fun p : K × B => ((g p.1).1, p.2, (g p.1).2)) φ))
+  rw [← subst_comp, ← subst_comp] at hu
+  refine le_trans ?_ hu
+  rw [show (fun s : { p : K × (A × B × C) // g p.1 = ((fun d : A × B × C => (d.1, d.2.2)) p.2) } =>
+            s.1.2)
+        = ((fun p : K × B => ((g p.1).1, p.2, (g p.1).2)) ∘ fun s => (s.1.1, s.1.2.2.1)) from by
+      funext s
+      show s.1.2 = ((g s.1.1).1, s.1.2.2.1, (g s.1.1).2)
+      rw [s.2]]
+  exact le_refl _
+
 end Tripos
 
 end LeanExperiments.Realizability

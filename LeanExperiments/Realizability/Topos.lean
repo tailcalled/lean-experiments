@@ -200,6 +200,155 @@ def compRel_total (F : FunRel X Y) (G : FunRel Y Z) :
     (le_trans (ex_comp_le (fun d : X.carrier × Y.carrier × Z.carrier => (d.1, d.2.1)) Prod.fst _)
       (ex_comp_ge (fun d : X.carrier × Y.carrier × Z.carrier => (d.1, d.2.2)) Prod.fst _))
 
+/-- Single-valuedness of the composite. -/
+def compRel_single (F : FunRel X Y) (G : FunRel Y Z) :
+    conj (subst (fun t : X.carrier × Z.carrier × Z.carrier => (t.1, t.2.1)) (compRel F G))
+         (subst (fun t : X.carrier × Z.carrier × Z.carrier => (t.1, t.2.2)) (compRel F G))
+      ⊢ subst (fun t : X.carrier × Z.carrier × Z.carrier => (t.2.1, t.2.2)) Z.rel := by
+  -- Expose `∃y` from the first composite.
+  refine le_trans (conj_mono
+    (subst_ex_mid (fun t : X.carrier × Z.carrier × Z.carrier => (t.1, t.2.1))
+      (conj (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.1, d.2.1)) F.rel)
+            (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.2.1, d.2.2)) G.rel)))
+    (le_refl _)) ?_
+  refine conj_ex_elim Prod.fst ?_
+  -- Expose `∃y'` from the second composite.
+  rw [← subst_comp (Prod.fst : (X.carrier × Z.carrier × Z.carrier) × Y.carrier →
+        X.carrier × Z.carrier × Z.carrier)
+      (fun t : X.carrier × Z.carrier × Z.carrier => (t.1, t.2.2)) (compRel F G)]
+  refine le_trans (conj_mono
+    (subst_ex_mid ((fun t : X.carrier × Z.carrier × Z.carrier => (t.1, t.2.2)) ∘
+        (Prod.fst : (X.carrier × Z.carrier × Z.carrier) × Y.carrier →
+          X.carrier × Z.carrier × Z.carrier))
+      (conj (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.1, d.2.1)) F.rel)
+            (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.2.1, d.2.2)) G.rel)))
+    (le_refl _)) ?_
+  refine conj_ex_elim Prod.fst ?_
+  -- Now over `W`, with `x, y, y', z, z'` all present.  Reindexed `F`/`G` laws:
+  have hFs : conj (subst (fun w : ((X.carrier × Z.carrier × Z.carrier) × Y.carrier) × Y.carrier =>
+                    (w.1.1.1, w.1.2)) F.rel)
+                  (subst (fun w => (w.1.1.1, w.2)) F.rel)
+              ⊢ subst (fun w => (w.1.2, w.2)) Y.rel := by
+    have h := subst_mono (fun w : ((X.carrier × Z.carrier × Z.carrier) × Y.carrier) × Y.carrier =>
+      (w.1.1.1, w.1.2, w.2)) F.single
+    simp only [subst_conj, ← subst_comp] at h
+    exact h
+  have hGcod : subst (fun w : ((X.carrier × Z.carrier × Z.carrier) × Y.carrier) × Y.carrier =>
+                  (w.1.2, w.1.1.2.1)) G.rel
+                ⊢ subst (fun w => (w.1.1.2.1, w.1.1.2.1)) Z.rel := by
+    have h := subst_mono (fun w : ((X.carrier × Z.carrier × Z.carrier) × Y.carrier) × Y.carrier =>
+      (w.1.2, w.1.1.2.1)) G.strict_cod
+    rw [← subst_comp] at h
+    exact h
+  have hGcong : conj (conj (subst (fun w : ((X.carrier × Z.carrier × Z.carrier) × Y.carrier) ×
+                          Y.carrier => (w.1.2, w.1.1.2.1)) G.rel)
+                          (subst (fun w => (w.1.2, w.2)) Y.rel))
+                     (subst (fun w => (w.1.1.2.1, w.1.1.2.1)) Z.rel)
+                 ⊢ subst (fun w => (w.2, w.1.1.2.1)) G.rel := by
+    have h := subst_mono (fun w : ((X.carrier × Z.carrier × Z.carrier) × Y.carrier) × Y.carrier =>
+      (w.1.2, w.2, w.1.1.2.1, w.1.1.2.1)) G.cong
+    simp only [subst_conj, ← subst_comp] at h
+    exact h
+  have hGs : conj (subst (fun w : ((X.carrier × Z.carrier × Z.carrier) × Y.carrier) × Y.carrier =>
+                    (w.2, w.1.1.2.1)) G.rel)
+                  (subst (fun w => (w.2, w.1.1.2.2)) G.rel)
+              ⊢ subst (fun w => (w.1.1.2.1, w.1.1.2.2)) Z.rel := by
+    have h := subst_mono (fun w : ((X.carrier × Z.carrier × Z.carrier) × Y.carrier) × Y.carrier =>
+      (w.2, w.1.1.2.1, w.1.1.2.2)) G.single
+    simp only [subst_conj, ← subst_comp] at h
+    exact h
+  -- Expand the two composite conjunctions and assemble.
+  simp only [subst_conj, ← subst_comp]
+  refine le_trans (le_conj ?_ ?_) hGs
+  · refine le_trans (le_conj (le_conj ?_ ?_) ?_) hGcong
+    · exact le_trans (conj_le_left _ _) (conj_le_right _ _)
+    · exact le_trans (le_conj (le_trans (conj_le_left _ _) (conj_le_left _ _))
+        (le_trans (conj_le_right _ _) (conj_le_left _ _))) hFs
+    · exact le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) hGcod
+  · exact le_trans (conj_le_right _ _) (conj_le_right _ _)
+
+/-- Relationality/extensionality of the composite. -/
+def compRel_cong (F : FunRel X Y) (G : FunRel Y Z) :
+    conj (conj (subst (fun t : X.carrier × X.carrier × Z.carrier × Z.carrier =>
+                  (t.1, t.2.2.1)) (compRel F G))
+               (subst (fun t => (t.1, t.2.1)) X.rel))
+         (subst (fun t => (t.2.2.1, t.2.2.2)) Z.rel)
+      ⊢ subst (fun t : X.carrier × X.carrier × Z.carrier × Z.carrier =>
+          (t.2.1, t.2.2.2)) (compRel F G) := by
+  -- Bring `compRel(x,z)` to the top and expose its `∃y`.
+  refine le_trans (conj_assoc_left _ _ _) ?_
+  refine le_trans (conj_mono
+    (subst_ex_mid (fun t : X.carrier × X.carrier × Z.carrier × Z.carrier => (t.1, t.2.2.1))
+      (conj (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.1, d.2.1)) F.rel)
+            (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.2.1, d.2.2)) G.rel)))
+    (le_refl _)) ?_
+  refine conj_ex_elim Prod.fst ?_
+  -- `RHS = compRel(x',z')`; reintroduce its `∃y` with the same `y`.
+  rw [← subst_comp]
+  refine le_trans ?_
+    (by
+      have h := subst_mono
+        (fun p : (X.carrier × X.carrier × Z.carrier × Z.carrier) × Y.carrier =>
+          (p.1.2.1, p.2, p.1.2.2.2))
+        (ex_unit (fun d : X.carrier × Y.carrier × Z.carrier => (d.1, d.2.2))
+          (conj (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.1, d.2.1)) F.rel)
+                (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.2.1, d.2.2)) G.rel)))
+      rw [← subst_comp] at h
+      exact h)
+  -- Reindexed `F`/`G` laws over `W₂ = (X×X×Z×Z) × Y`.
+  have hFcong : conj (conj (subst (fun p : (X.carrier × X.carrier × Z.carrier × Z.carrier) ×
+                          Y.carrier => (p.1.1, p.2)) F.rel)
+                          (subst (fun p => (p.1.1, p.1.2.1)) X.rel))
+                     (subst (fun p => (p.2, p.2)) Y.rel)
+                 ⊢ subst (fun p => (p.1.2.1, p.2)) F.rel := by
+    have h := subst_mono (fun p : (X.carrier × X.carrier × Z.carrier × Z.carrier) × Y.carrier =>
+      (p.1.1, p.1.2.1, p.2, p.2)) F.cong
+    simp only [subst_conj, ← subst_comp] at h
+    exact h
+  have hFcod : subst (fun p : (X.carrier × X.carrier × Z.carrier × Z.carrier) × Y.carrier =>
+                  (p.1.1, p.2)) F.rel
+                ⊢ subst (fun p => (p.2, p.2)) Y.rel := by
+    have h := subst_mono (fun p : (X.carrier × X.carrier × Z.carrier × Z.carrier) × Y.carrier =>
+      (p.1.1, p.2)) F.strict_cod
+    rw [← subst_comp] at h
+    exact h
+  have hGcong : conj (conj (subst (fun p : (X.carrier × X.carrier × Z.carrier × Z.carrier) ×
+                          Y.carrier => (p.2, p.1.2.2.1)) G.rel)
+                          (subst (fun p => (p.2, p.2)) Y.rel))
+                     (subst (fun p => (p.1.2.2.1, p.1.2.2.2)) Z.rel)
+                 ⊢ subst (fun p => (p.2, p.1.2.2.2)) G.rel := by
+    have h := subst_mono (fun p : (X.carrier × X.carrier × Z.carrier × Z.carrier) × Y.carrier =>
+      (p.2, p.2, p.1.2.2.1, p.1.2.2.2)) G.cong
+    simp only [subst_conj, ← subst_comp] at h
+    exact h
+  have hGdom : subst (fun p : (X.carrier × X.carrier × Z.carrier × Z.carrier) × Y.carrier =>
+                  (p.2, p.1.2.2.1)) G.rel
+                ⊢ subst (fun p => (p.2, p.2)) Y.rel := by
+    have h := subst_mono (fun p : (X.carrier × X.carrier × Z.carrier × Z.carrier) × Y.carrier =>
+      (p.2, p.1.2.2.1)) G.strict_dom
+    rw [← subst_comp] at h
+    exact h
+  -- Expand and assemble.
+  simp only [subst_conj, ← subst_comp]
+  refine le_conj ?_ ?_
+  · refine le_trans (le_conj (le_conj ?_ ?_) ?_) hFcong
+    · exact le_trans (conj_le_right _ _) (conj_le_left _ _)
+    · exact le_trans (conj_le_left _ _) (conj_le_left _ _)
+    · exact le_trans (le_trans (conj_le_right _ _) (conj_le_left _ _)) hFcod
+  · refine le_trans (le_conj (le_conj ?_ ?_) ?_) hGcong
+    · exact le_trans (conj_le_right _ _) (conj_le_right _ _)
+    · exact le_trans (le_trans (conj_le_right _ _) (conj_le_right _ _)) hGdom
+    · exact le_trans (conj_le_left _ _) (conj_le_right _ _)
+
+/-- The composite functional relation `G ∘ F`, a genuine morphism `X ⟶ Z`. -/
+def compFunRel (F : FunRel X Y) (G : FunRel Y Z) : FunRel X Z where
+  rel := compRel F G
+  strict_dom := compRel_strict_dom F G
+  strict_cod := compRel_strict_cod F G
+  cong := compRel_cong F G
+  single := compRel_single F G
+  total := compRel_total F G
+
 /-! ### The category structure -/
 
 /-- Two functional relations represent the same morphism iff mutually entailed. -/
@@ -221,6 +370,215 @@ def Hom (X Y : PER P) : Type (max u v) := Quotient (homSetoid X Y)
 
 /-- The identity morphism. -/
 def Hom.id (X : PER P) : Hom X X := Quotient.mk _ (idFunRel X)
+
+/-- Composition of morphisms (`g ∘ f`), well-defined on the quotient by
+`compRel_mono`. -/
+def Hom.comp {X Y Z : PER P} (g : Hom Y Z) (f : Hom X Y) : Hom X Z :=
+  Quotient.liftOn₂ f g (fun F G => (Quotient.mk _ (compFunRel F G) : Hom X Z))
+    (fun _ _ _ _ hF hG => Quotient.sound
+      ⟨match hF.1, hG.1 with | ⟨a⟩, ⟨b⟩ => ⟨compRel_mono a b⟩,
+       match hF.2, hG.2 with | ⟨a⟩, ⟨b⟩ => ⟨compRel_mono a b⟩⟩)
+
+/-! ### Associativity, via a canonical "triple composite" -/
+
+/-- The canonical triple composite `∃(y,z). F(x,y) ∧ G(y,z) ∧ H(z,w)`. -/
+def tripleRel (F : FunRel X Y) (G : FunRel Y Z) (H : FunRel Z W) :
+    P (X.carrier × W.carrier) :=
+  ex (fun e : X.carrier × Y.carrier × Z.carrier × W.carrier => (e.1, e.2.2.2))
+    (conj (conj (subst (fun e => (e.1, e.2.1)) F.rel)
+                (subst (fun e => (e.2.1, e.2.2.1)) G.rel))
+          (subst (fun e => (e.2.2.1, e.2.2.2)) H.rel))
+
+/-- `(H ∘ G) ∘-nested F ⊢ triple`. -/
+def tripleRel_left_fwd (F : FunRel X Y) (G : FunRel Y Z) (H : FunRel Z W) :
+    compRel F (compFunRel G H) ⊢ tripleRel F G H := by
+  refine ex_adj_mpr ?_
+  refine le_trans (conj_mono (le_refl _)
+    (subst_ex_mid (fun d : X.carrier × Y.carrier × W.carrier => (d.2.1, d.2.2))
+      (conj (subst (fun d : Y.carrier × Z.carrier × W.carrier => (d.1, d.2.1)) G.rel)
+            (subst (fun d : Y.carrier × Z.carrier × W.carrier => (d.2.1, d.2.2)) H.rel)))) ?_
+  refine le_trans (conj_comm _ _) (conj_ex_elim Prod.fst ?_)
+  rw [← subst_comp (Prod.fst : (X.carrier × Y.carrier × W.carrier) × Z.carrier →
+        X.carrier × Y.carrier × W.carrier)
+      (fun d : X.carrier × Y.carrier × W.carrier => (d.1, d.2.2)) (tripleRel F G H)]
+  refine le_trans ?_ (by
+    have h := subst_mono (fun p : (X.carrier × Y.carrier × W.carrier) × Z.carrier =>
+        (p.1.1, p.1.2.1, p.2, p.1.2.2))
+      (ex_unit (fun e : X.carrier × Y.carrier × Z.carrier × W.carrier => (e.1, e.2.2.2))
+        (conj (conj (subst (fun e => (e.1, e.2.1)) F.rel)
+                    (subst (fun e => (e.2.1, e.2.2.1)) G.rel))
+              (subst (fun e => (e.2.2.1, e.2.2.2)) H.rel)))
+    rw [← subst_comp] at h
+    exact h)
+  simp only [subst_conj, ← subst_comp]
+  refine le_conj (le_conj ?_ ?_) ?_
+  · exact conj_le_left _ _
+  · exact le_trans (conj_le_right _ _) (conj_le_left _ _)
+  · exact le_trans (conj_le_right _ _) (conj_le_right _ _)
+
+/-- `triple ⊢ (H ∘ G) ∘-nested F`. -/
+def tripleRel_left_bwd (F : FunRel X Y) (G : FunRel Y Z) (H : FunRel Z W) :
+    tripleRel F G H ⊢ compRel F (compFunRel G H) := by
+  refine ex_adj_mpr ?_
+  refine le_trans ?_ (by
+    have h := subst_mono (fun e : X.carrier × Y.carrier × Z.carrier × W.carrier =>
+        (e.1, e.2.1, e.2.2.2))
+      (ex_unit (fun d : X.carrier × Y.carrier × W.carrier => (d.1, d.2.2))
+        (conj (subst (fun d : X.carrier × Y.carrier × W.carrier => (d.1, d.2.1)) F.rel)
+              (subst (fun d : X.carrier × Y.carrier × W.carrier => (d.2.1, d.2.2))
+                (compRel G H))))
+    rw [← subst_comp] at h
+    exact h)
+  rw [subst_conj]
+  refine le_conj ?_ ?_
+  · rw [← subst_comp]
+    exact le_trans (conj_le_left _ _) (conj_le_left _ _)
+  · rw [← subst_comp]
+    refine le_trans ?_ (by
+      have h := subst_mono (fun e : X.carrier × Y.carrier × Z.carrier × W.carrier =>
+          (e.2.1, e.2.2.1, e.2.2.2))
+        (ex_unit (fun d : Y.carrier × Z.carrier × W.carrier => (d.1, d.2.2))
+          (conj (subst (fun d : Y.carrier × Z.carrier × W.carrier => (d.1, d.2.1)) G.rel)
+                (subst (fun d : Y.carrier × Z.carrier × W.carrier => (d.2.1, d.2.2)) H.rel)))
+      rw [← subst_comp] at h
+      exact h)
+    rw [subst_conj, ← subst_comp, ← subst_comp]
+    exact le_conj (le_trans (conj_le_left _ _) (conj_le_right _ _)) (conj_le_right _ _)
+
+/-- `(H ∘ G) ∘ F`-right ⊢ triple. -/
+def tripleRel_right_fwd (F : FunRel X Y) (G : FunRel Y Z) (H : FunRel Z W) :
+    compRel (compFunRel F G) H ⊢ tripleRel F G H := by
+  refine ex_adj_mpr ?_
+  refine le_trans (conj_mono
+    (subst_ex_mid (fun d : X.carrier × Z.carrier × W.carrier => (d.1, d.2.1))
+      (conj (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.1, d.2.1)) F.rel)
+            (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.2.1, d.2.2)) G.rel)))
+    (le_refl _)) (conj_ex_elim Prod.fst ?_)
+  rw [← subst_comp (Prod.fst : (X.carrier × Z.carrier × W.carrier) × Y.carrier →
+        X.carrier × Z.carrier × W.carrier)
+      (fun d : X.carrier × Z.carrier × W.carrier => (d.1, d.2.2)) (tripleRel F G H)]
+  refine le_trans ?_ (by
+    have h := subst_mono (fun p : (X.carrier × Z.carrier × W.carrier) × Y.carrier =>
+        (p.1.1, p.2, p.1.2.1, p.1.2.2))
+      (ex_unit (fun e : X.carrier × Y.carrier × Z.carrier × W.carrier => (e.1, e.2.2.2))
+        (conj (conj (subst (fun e => (e.1, e.2.1)) F.rel)
+                    (subst (fun e => (e.2.1, e.2.2.1)) G.rel))
+              (subst (fun e => (e.2.2.1, e.2.2.2)) H.rel)))
+    rw [← subst_comp] at h
+    exact h)
+  simp only [subst_conj, ← subst_comp]
+  refine le_conj (le_conj ?_ ?_) ?_
+  · exact le_trans (conj_le_right _ _) (conj_le_left _ _)
+  · exact le_trans (conj_le_right _ _) (conj_le_right _ _)
+  · exact conj_le_left _ _
+
+/-- `triple ⊢ (H ∘ G) ∘ F`-right. -/
+def tripleRel_right_bwd (F : FunRel X Y) (G : FunRel Y Z) (H : FunRel Z W) :
+    tripleRel F G H ⊢ compRel (compFunRel F G) H := by
+  refine ex_adj_mpr ?_
+  refine le_trans ?_ (by
+    have h := subst_mono (fun e : X.carrier × Y.carrier × Z.carrier × W.carrier =>
+        (e.1, e.2.2.1, e.2.2.2))
+      (ex_unit (fun d : X.carrier × Z.carrier × W.carrier => (d.1, d.2.2))
+        (conj (subst (fun d : X.carrier × Z.carrier × W.carrier => (d.1, d.2.1)) (compRel F G))
+              (subst (fun d : X.carrier × Z.carrier × W.carrier => (d.2.1, d.2.2)) H.rel)))
+    rw [← subst_comp] at h
+    exact h)
+  rw [subst_conj]
+  refine le_conj ?_ ?_
+  · rw [← subst_comp]
+    refine le_trans ?_ (by
+      have h := subst_mono (fun e : X.carrier × Y.carrier × Z.carrier × W.carrier =>
+          (e.1, e.2.1, e.2.2.1))
+        (ex_unit (fun d : X.carrier × Y.carrier × Z.carrier => (d.1, d.2.2))
+          (conj (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.1, d.2.1)) F.rel)
+                (subst (fun d : X.carrier × Y.carrier × Z.carrier => (d.2.1, d.2.2)) G.rel)))
+      rw [← subst_comp] at h
+      exact h)
+    rw [subst_conj, ← subst_comp, ← subst_comp]
+    exact le_conj (le_trans (conj_le_left _ _) (conj_le_left _ _))
+                  (le_trans (conj_le_left _ _) (conj_le_right _ _))
+  · rw [← subst_comp]
+    exact conj_le_right _ _
+
+/-! ### Category laws -/
+
+/-- Right identity: `f ∘ 𝟙 = f`. -/
+theorem Hom.comp_id {X Y : PER P} (f : Hom X Y) : Hom.comp f (Hom.id X) = f := by
+  induction f using Quotient.inductionOn with | _ Gf =>
+  have hcong : conj (conj (subst (fun d : X.carrier × X.carrier × Y.carrier => (d.2.1, d.2.2)) Gf.rel)
+                          (subst (fun d => (d.2.1, d.1)) X.rel))
+                    (subst (fun d => (d.2.2, d.2.2)) Y.rel)
+                ⊢ subst (fun d => (d.1, d.2.2)) Gf.rel := by
+    have h := subst_mono (fun d : X.carrier × X.carrier × Y.carrier => (d.2.1, d.1, d.2.2, d.2.2))
+      Gf.cong
+    simp only [subst_conj, ← subst_comp] at h
+    exact h
+  have hcod : subst (fun d : X.carrier × X.carrier × Y.carrier => (d.2.1, d.2.2)) Gf.rel
+                ⊢ subst (fun d => (d.2.2, d.2.2)) Y.rel := by
+    have h := subst_mono (fun d : X.carrier × X.carrier × Y.carrier => (d.2.1, d.2.2))
+      Gf.strict_cod
+    rw [← subst_comp] at h
+    exact h
+  have fwd : compRel (idFunRel X) Gf ⊢ Gf.rel := by
+    refine ex_adj_mpr (le_trans (le_conj (le_conj ?_ ?_) ?_) hcong)
+    · exact conj_le_right _ _
+    · exact le_trans (conj_le_left _ _)
+        (X.symm_at (fun d : X.carrier × X.carrier × Y.carrier => d.1) (fun d => d.2.1))
+    · exact le_trans (conj_le_right _ _) hcod
+  have bwd : Gf.rel ⊢ compRel (idFunRel X) Gf := by
+    have h := subst_mono (fun p : X.carrier × Y.carrier => (p.1, p.1, p.2))
+      (ex_unit (fun d : X.carrier × X.carrier × Y.carrier => (d.1, d.2.2))
+        (conj (subst (fun d : X.carrier × X.carrier × Y.carrier => (d.1, d.2.1)) X.rel)
+              (subst (fun d : X.carrier × X.carrier × Y.carrier => (d.2.1, d.2.2)) Gf.rel)))
+    rw [← subst_comp] at h
+    refine le_trans ?_ (le_trans h (subst_id_le _))
+    rw [subst_conj, ← subst_comp, ← subst_comp]
+    exact le_conj Gf.strict_dom (subst_id_ge _)
+  exact Quotient.sound ⟨⟨fwd⟩, ⟨bwd⟩⟩
+
+/-- Left identity: `𝟙 ∘ f = f`. -/
+theorem Hom.id_comp {X Y : PER P} (f : Hom X Y) : Hom.comp (Hom.id Y) f = f := by
+  induction f using Quotient.inductionOn with | _ Gf =>
+  have hcong : conj (conj (subst (fun d : X.carrier × Y.carrier × Y.carrier => (d.1, d.2.1)) Gf.rel)
+                          (subst (fun d => (d.1, d.1)) X.rel))
+                    (subst (fun d => (d.2.1, d.2.2)) Y.rel)
+                ⊢ subst (fun d => (d.1, d.2.2)) Gf.rel := by
+    have h := subst_mono (fun d : X.carrier × Y.carrier × Y.carrier => (d.1, d.1, d.2.1, d.2.2))
+      Gf.cong
+    simp only [subst_conj, ← subst_comp] at h
+    exact h
+  have hdom : subst (fun d : X.carrier × Y.carrier × Y.carrier => (d.1, d.2.1)) Gf.rel
+                ⊢ subst (fun d => (d.1, d.1)) X.rel := by
+    have h := subst_mono (fun d : X.carrier × Y.carrier × Y.carrier => (d.1, d.2.1))
+      Gf.strict_dom
+    rw [← subst_comp] at h
+    exact h
+  have fwd : compRel Gf (idFunRel Y) ⊢ Gf.rel := by
+    refine ex_adj_mpr (le_trans (le_conj (le_conj ?_ ?_) ?_) hcong)
+    · exact conj_le_left _ _
+    · exact le_trans (conj_le_left _ _) hdom
+    · exact conj_le_right _ _
+  have bwd : Gf.rel ⊢ compRel Gf (idFunRel Y) := by
+    have h := subst_mono (fun p : X.carrier × Y.carrier => (p.1, p.2, p.2))
+      (ex_unit (fun d : X.carrier × Y.carrier × Y.carrier => (d.1, d.2.2))
+        (conj (subst (fun d : X.carrier × Y.carrier × Y.carrier => (d.1, d.2.1)) Gf.rel)
+              (subst (fun d : X.carrier × Y.carrier × Y.carrier => (d.2.1, d.2.2)) Y.rel)))
+    rw [← subst_comp] at h
+    refine le_trans ?_ (le_trans h (subst_id_le _))
+    rw [subst_conj, ← subst_comp, ← subst_comp]
+    exact le_conj (subst_id_ge _) Gf.strict_cod
+  exact Quotient.sound ⟨⟨fwd⟩, ⟨bwd⟩⟩
+
+/-- Associativity: `(h ∘ g) ∘ f = h ∘ (g ∘ f)`. -/
+theorem Hom.comp_assoc {X Y Z W : PER P} (h : Hom Z W) (g : Hom Y Z) (f : Hom X Y) :
+    Hom.comp (Hom.comp h g) f = Hom.comp h (Hom.comp g f) := by
+  induction f using Quotient.inductionOn with | _ F =>
+  induction g using Quotient.inductionOn with | _ G =>
+  induction h using Quotient.inductionOn with | _ H =>
+  exact Quotient.sound
+    ⟨⟨le_trans (tripleRel_left_fwd F G H) (tripleRel_right_bwd F G H)⟩,
+     ⟨le_trans (tripleRel_right_fwd F G H) (tripleRel_left_bwd F G H)⟩⟩
 
 end Tripos
 
