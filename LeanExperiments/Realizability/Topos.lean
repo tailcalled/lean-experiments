@@ -62,6 +62,16 @@ def trans_at (X : PER P) {K : Type u} (a b c : K → X.carrier) :
   simp only [subst_conj, ← subst_comp] at h
   exact h
 
+/-- Existence on the left: `ρ(a, b) ⊢ ρ(a, a)`. -/
+def refl_left_at (X : PER P) {K : Type u} (a b : K → X.carrier) :
+    subst (fun k => (a k, b k)) X.rel ⊢ subst (fun k => (a k, a k)) X.rel :=
+  le_trans (le_conj (le_refl _) (X.symm_at a b)) (X.trans_at a b a)
+
+/-- Existence on the right: `ρ(a, b) ⊢ ρ(b, b)`. -/
+def refl_right_at (X : PER P) {K : Type u} (a b : K → X.carrier) :
+    subst (fun k => (a k, b k)) X.rel ⊢ subst (fun k => (b k, b k)) X.rel :=
+  le_trans (le_conj (X.symm_at a b) (le_refl _)) (X.trans_at b a b)
+
 end PER
 
 /-! ### Morphisms: functional relations -/
@@ -579,6 +589,406 @@ theorem Hom.comp_assoc {X Y Z W : PER P} (h : Hom Z W) (g : Hom Y Z) (f : Hom X 
   exact Quotient.sound
     ⟨⟨le_trans (tripleRel_left_fwd F G H) (tripleRel_right_bwd F G H)⟩,
      ⟨le_trans (tripleRel_right_fwd F G H) (tripleRel_left_bwd F G H)⟩⟩
+
+/-! ### Terminal object -/
+
+/-- The terminal object: the point, carrying the top predicate. -/
+def terminal : PER P where
+  carrier := PUnit
+  rel := top
+  symm := by simp only [subst_top]; exact le_refl _
+  trans := by simp only [subst_top]; exact le_top _
+
+/-- The terminal functional relation `X ⟶ 𝟙`: relate `x` to the point iff `x`
+exists.  Its relation is the extent predicate `E_X(x) = ρ(x, x)`. -/
+def terminalFunRel (X : PER P) : FunRel X terminal where
+  rel := subst (fun p : X.carrier × PUnit => (p.1, p.1)) X.rel
+  strict_dom := le_refl _
+  strict_cod := by
+    show _ ⊢ subst (fun p : X.carrier × PUnit => (p.2, p.2)) (top : P (PUnit × PUnit))
+    rw [subst_top]; exact le_top _
+  cong := by
+    simp only [← subst_comp]
+    exact le_trans (le_conj
+      (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _))
+        (X.symm_at (K := X.carrier × X.carrier × PUnit × PUnit) (fun t => t.1) (fun t => t.2.1)))
+      (le_trans (conj_le_left _ _) (conj_le_right _ _)))
+      (X.trans_at (K := X.carrier × X.carrier × PUnit × PUnit)
+        (fun t => t.2.1) (fun t => t.1) (fun t => t.2.1))
+  single := by
+    show _ ⊢ subst (fun t : X.carrier × PUnit × PUnit => (t.2.1, t.2.2)) (top : P (PUnit × PUnit))
+    rw [subst_top]; exact le_top _
+  total := by
+    have h := subst_mono (fun x : X.carrier => (x, PUnit.unit))
+      (ex_unit (Prod.fst : X.carrier × PUnit → X.carrier)
+        (subst (fun p : X.carrier × PUnit => (p.1, p.1)) X.rel))
+    simp only [← subst_comp] at h
+    exact le_trans h (subst_id_le _)
+
+/-- The terminal morphism `X ⟶ 𝟙`. -/
+def terminalHom (X : PER P) : Hom X terminal := Quotient.mk _ (terminalFunRel X)
+
+/-- Terminality: every morphism into `𝟙` equals the terminal one. -/
+theorem terminalHom_unique {X : PER P} (f : Hom X terminal) : f = terminalHom X := by
+  induction f using Quotient.inductionOn with | _ F =>
+  refine Quotient.sound ⟨⟨F.strict_dom⟩, ⟨?_⟩⟩
+  have h := subst_mono (Prod.fst : X.carrier × PUnit → X.carrier) F.total
+  rw [← subst_comp] at h
+  refine le_trans h (subst_ex_elim (Prod.fst : X.carrier × PUnit → X.carrier)
+    (Prod.fst : X.carrier × PUnit → X.carrier) ?_)
+  rw [show (fun s : { p : (X.carrier × PUnit) × (X.carrier × PUnit) //
+          Prod.fst p.1 = Prod.fst p.2 } => s.1.1)
+        = (fun s => s.1.2) from funext fun s => (Prod.ext_iff.mpr ⟨s.2, Subsingleton.elim _ _⟩)]
+  exact le_refl _
+
+/-! ### Binary products -/
+
+/-- The product PER: `(x, y) ~ (x', y')` iff `x ~ x'` in `X` and `y ~ y'` in `Y`. -/
+def prodPER (X Y : PER P) : PER P where
+  carrier := X.carrier × Y.carrier
+  rel :=
+    conj (subst (fun q : (X.carrier × Y.carrier) × (X.carrier × Y.carrier) => (q.1.1, q.2.1)) X.rel)
+         (subst (fun q => (q.1.2, q.2.2)) Y.rel)
+  symm := by
+    simp only [subst_conj, ← subst_comp]
+    exact conj_mono
+      (X.symm_at (K := (X.carrier × Y.carrier) × X.carrier × Y.carrier)
+        (fun q => q.1.1) (fun q => q.2.1))
+      (Y.symm_at (K := (X.carrier × Y.carrier) × X.carrier × Y.carrier)
+        (fun q => q.1.2) (fun q => q.2.2))
+  trans := by
+    simp only [subst_conj, ← subst_comp]
+    refine le_conj ?_ ?_
+    · exact le_trans (le_conj (le_trans (conj_le_left _ _) (conj_le_left _ _))
+        (le_trans (conj_le_right _ _) (conj_le_left _ _)))
+        (X.trans_at (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × X.carrier × Y.carrier)
+          (fun t => t.1.1) (fun t => t.2.1.1) (fun t => t.2.2.1))
+    · exact le_trans (le_conj (le_trans (conj_le_left _ _) (conj_le_right _ _))
+        (le_trans (conj_le_right _ _) (conj_le_right _ _)))
+        (Y.trans_at (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × X.carrier × Y.carrier)
+          (fun t => t.1.2) (fun t => t.2.1.2) (fun t => t.2.2.2))
+
+/-- First projection `X × Y ⟶ X`: relate `(x, y)` to `x'` iff `x ~ x'` and `y`
+exists. -/
+def proj1 (X Y : PER P) : FunRel (prodPER X Y) X where
+  rel := conj (subst (fun p : (X.carrier × Y.carrier) × X.carrier => (p.1.1, p.2)) X.rel)
+              (subst (fun p => (p.1.2, p.1.2)) Y.rel)
+  strict_dom := by
+    simp only [prodPER, subst_conj, ← subst_comp]
+    exact conj_mono
+      (X.refl_left_at (K := (X.carrier × Y.carrier) × X.carrier) (fun p => p.1.1) (fun p => p.2))
+      (le_refl _)
+  strict_cod := by
+    refine le_trans (conj_le_left _ _) ?_
+    exact X.refl_right_at (K := (X.carrier × Y.carrier) × X.carrier) (fun p => p.1.1) (fun p => p.2)
+  cong := by
+    simp only [prodPER, subst_conj, ← subst_comp]
+    refine le_conj ?_ ?_
+    · -- ρ_X(p'x, x'') from ρ_X(px,x'), ρ_X(px,p'x), ρ_X(x',x'')
+      refine le_trans (le_conj (le_trans (le_conj (le_trans ?_
+          (X.symm_at (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × X.carrier × X.carrier)
+            (fun t => t.1.1) (fun t => t.2.1.1))) ?_)
+          (X.trans_at (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × X.carrier × X.carrier)
+            (fun t => t.2.1.1) (fun t => t.1.1) (fun t => t.2.2.1))) ?_)
+        (X.trans_at (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × X.carrier × X.carrier)
+          (fun t => t.2.1.1) (fun t => t.2.2.1) (fun t => t.2.2.2))
+      · exact le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (conj_le_left _ _)
+      · exact le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_left _ _)
+      · exact conj_le_right _ _
+    · -- E_Y(p'y) from ρ_Y(py, p'y)
+      refine le_trans (le_conj (le_trans ?_
+          (Y.symm_at (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × X.carrier × X.carrier)
+            (fun t => t.1.2) (fun t => t.2.1.2))) ?_)
+        (Y.trans_at (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × X.carrier × X.carrier)
+          (fun t => t.2.1.2) (fun t => t.1.2) (fun t => t.2.1.2))
+      · exact le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (conj_le_right _ _)
+      · exact le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (conj_le_right _ _)
+  single := by
+    simp only [subst_conj, ← subst_comp]
+    exact le_trans (le_conj
+      (le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _))
+        (X.symm_at (K := (X.carrier × Y.carrier) × X.carrier × X.carrier)
+          (fun s => s.1.1) (fun s => s.2.1)))
+      (le_trans (conj_le_right _ _) (conj_le_left _ _)))
+      (X.trans_at (K := (X.carrier × Y.carrier) × X.carrier × X.carrier)
+        (fun s => s.2.1) (fun s => s.1.1) (fun s => s.2.2))
+  total := by
+    have h := subst_mono (fun q : X.carrier × Y.carrier => (q, q.1))
+      (ex_unit (Prod.fst : (X.carrier × Y.carrier) × X.carrier → X.carrier × Y.carrier)
+        (conj (subst (fun p : (X.carrier × Y.carrier) × X.carrier => (p.1.1, p.2)) X.rel)
+              (subst (fun p => (p.1.2, p.1.2)) Y.rel)))
+    simp only [← subst_comp] at h
+    refine le_trans ?_ (le_trans h (subst_id_le _))
+    simp only [prodPER, subst_conj, ← subst_comp]
+    exact le_refl _
+
+/-- The pairing `⟨f, g⟩ : Z ⟶ X × Y` of `f : Z ⟶ X` and `g : Z ⟶ Y`. -/
+def pairFunRel {Z : PER P} (f : FunRel Z X) (g : FunRel Z Y) : FunRel Z (prodPER X Y) where
+  rel := conj (subst (fun p : Z.carrier × (X.carrier × Y.carrier) => (p.1, p.2.1)) f.rel)
+              (subst (fun p => (p.1, p.2.2)) g.rel)
+  strict_dom := by
+    refine le_trans (conj_le_left _ _) ?_
+    have h := subst_mono (fun p : Z.carrier × (X.carrier × Y.carrier) => (p.1, p.2.1)) f.strict_dom
+    rw [← subst_comp] at h; exact h
+  strict_cod := by
+    simp only [prodPER, subst_conj, ← subst_comp]
+    refine conj_mono ?_ ?_
+    · have h := subst_mono (fun p : Z.carrier × (X.carrier × Y.carrier) => (p.1, p.2.1)) f.strict_cod
+      rw [← subst_comp] at h; exact h
+    · have h := subst_mono (fun p : Z.carrier × (X.carrier × Y.carrier) => (p.1, p.2.2)) g.strict_cod
+      rw [← subst_comp] at h; exact h
+  single := by
+    simp only [prodPER, subst_conj, ← subst_comp]
+    have hf := subst_mono
+      (fun t : Z.carrier × (X.carrier × Y.carrier) × (X.carrier × Y.carrier) =>
+        (t.1, t.2.1.1, t.2.2.1)) f.single
+    have hg := subst_mono
+      (fun t : Z.carrier × (X.carrier × Y.carrier) × (X.carrier × Y.carrier) =>
+        (t.1, t.2.1.2, t.2.2.2)) g.single
+    simp only [subst_conj, ← subst_comp] at hf hg
+    refine le_conj ?_ ?_
+    · exact le_trans (le_conj (le_trans (conj_le_left _ _) (conj_le_left _ _))
+        (le_trans (conj_le_right _ _) (conj_le_left _ _))) hf
+    · exact le_trans (le_conj (le_trans (conj_le_left _ _) (conj_le_right _ _))
+        (le_trans (conj_le_right _ _) (conj_le_right _ _))) hg
+  cong := by
+    simp only [prodPER, subst_conj, ← subst_comp]
+    have hf := subst_mono
+      (fun t : Z.carrier × Z.carrier × (X.carrier × Y.carrier) × (X.carrier × Y.carrier) =>
+        (t.1, t.2.1, t.2.2.1.1, t.2.2.2.1)) f.cong
+    have hg := subst_mono
+      (fun t : Z.carrier × Z.carrier × (X.carrier × Y.carrier) × (X.carrier × Y.carrier) =>
+        (t.1, t.2.1, t.2.2.1.2, t.2.2.2.2)) g.cong
+    simp only [subst_conj, ← subst_comp] at hf hg
+    refine le_conj ?_ ?_
+    · exact le_trans (le_conj (le_conj
+        (le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_left _ _))
+        (le_trans (conj_le_left _ _) (conj_le_right _ _)))
+        (le_trans (conj_le_right _ _) (conj_le_left _ _))) hf
+    · exact le_trans (le_conj (le_conj
+        (le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_right _ _))
+        (le_trans (conj_le_left _ _) (conj_le_right _ _)))
+        (le_trans (conj_le_right _ _) (conj_le_right _ _))) hg
+  total := by
+    have key2 : f.rel ⊢ ex (fun d : Z.carrier × X.carrier × Y.carrier => (d.1, d.2.1))
+        (subst (fun d : Z.carrier × X.carrier × Y.carrier => (d.1, d.2.2)) g.rel) := by
+      refine le_trans f.strict_dom ?_
+      have hg := subst_mono (Prod.fst : Z.carrier × X.carrier → Z.carrier) g.total
+      rw [← subst_comp] at hg
+      refine le_trans hg ?_
+      refine subst_ex_elim (Prod.fst : Z.carrier × Y.carrier → Z.carrier)
+        (Prod.fst : Z.carrier × X.carrier → Z.carrier) ?_
+      have hu := subst_mono
+        (fun s : { p : (Z.carrier × X.carrier) × (Z.carrier × Y.carrier) //
+            Prod.fst p.1 = Prod.fst p.2 } => (s.1.1.1, s.1.1.2, s.1.2.2))
+        (ex_unit (fun d : Z.carrier × X.carrier × Y.carrier => (d.1, d.2.1))
+          (subst (fun d : Z.carrier × X.carrier × Y.carrier => (d.1, d.2.2)) g.rel))
+      rw [← subst_comp, ← subst_comp] at hu
+      refine le_trans ?_ hu
+      rw [show (fun s : { p : (Z.carrier × X.carrier) × (Z.carrier × Y.carrier) //
+              Prod.fst p.1 = Prod.fst p.2 } => s.1.2)
+            = ((fun d : Z.carrier × X.carrier × Y.carrier => (d.1, d.2.2)) ∘
+                fun s => (s.1.1.1, s.1.1.2, s.1.2.2)) from by
+          funext s
+          show s.1.2 = (s.1.1.1, s.1.2.2)
+          rw [s.2]]
+      exact le_refl _
+    have key1 : f.rel ⊢ ex (fun d : Z.carrier × X.carrier × Y.carrier => (d.1, d.2.1))
+        (conj (subst (fun d : Z.carrier × X.carrier × Y.carrier => (d.1, d.2.1)) f.rel)
+              (subst (fun d => (d.1, d.2.2)) g.rel)) :=
+      le_trans (le_conj (le_refl _) key2)
+        (frobenius (fun d : Z.carrier × X.carrier × Y.carrier => (d.1, d.2.1)) _ f.rel)
+    exact le_trans (le_trans f.total (ex_mono (Prod.fst : Z.carrier × X.carrier → Z.carrier) key1))
+      (ex_comp_le (fun d : Z.carrier × X.carrier × Y.carrier => (d.1, d.2.1)) Prod.fst _)
+
+/-- The pairing morphism `⟨f, g⟩`. -/
+def Hom.pair {Z X Y : PER P} (f : Hom Z X) (g : Hom Z Y) : Hom Z (prodPER X Y) :=
+  Quotient.liftOn₂ f g (fun F G => (Quotient.mk _ (pairFunRel F G) : Hom Z (prodPER X Y)))
+    (fun _ _ _ _ hF hG => Quotient.sound
+      ⟨match hF.1, hG.1 with | ⟨a⟩, ⟨b⟩ => ⟨conj_mono (subst_mono _ a) (subst_mono _ b)⟩,
+       match hF.2, hG.2 with | ⟨a⟩, ⟨b⟩ => ⟨conj_mono (subst_mono _ a) (subst_mono _ b)⟩⟩)
+
+/-- Second projection `X × Y ⟶ Y`: relate `(x, y)` to `y'` iff `x` exists and
+`y ~ y'`. -/
+def proj2 (X Y : PER P) : FunRel (prodPER X Y) Y where
+  rel := conj (subst (fun p : (X.carrier × Y.carrier) × Y.carrier => (p.1.1, p.1.1)) X.rel)
+              (subst (fun p => (p.1.2, p.2)) Y.rel)
+  strict_dom := by
+    simp only [prodPER, subst_conj, ← subst_comp]
+    exact conj_mono (le_refl _)
+      (Y.refl_left_at (K := (X.carrier × Y.carrier) × Y.carrier) (fun p => p.1.2) (fun p => p.2))
+  strict_cod := by
+    refine le_trans (conj_le_right _ _) ?_
+    exact Y.refl_right_at (K := (X.carrier × Y.carrier) × Y.carrier) (fun p => p.1.2) (fun p => p.2)
+  cong := by
+    simp only [prodPER, subst_conj, ← subst_comp]
+    refine le_conj ?_ ?_
+    · -- E_X(p'x) from ρ_X(px, p'x)
+      refine le_trans (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _))
+        (conj_le_left _ _)) ?_
+      exact X.refl_right_at
+        (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × Y.carrier × Y.carrier)
+        (fun t => t.1.1) (fun t => t.2.1.1)
+    · -- ρ_Y(p'y, y'') from ρ_Y(py,y'), ρ_Y(py,p'y), ρ_Y(y',y'')
+      refine le_trans (le_conj (le_trans (le_conj (le_trans ?_
+          (Y.symm_at (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × Y.carrier × Y.carrier)
+            (fun t => t.1.2) (fun t => t.2.1.2))) ?_)
+          (Y.trans_at (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × Y.carrier × Y.carrier)
+            (fun t => t.2.1.2) (fun t => t.1.2) (fun t => t.2.2.1))) ?_)
+        (Y.trans_at (K := (X.carrier × Y.carrier) × (X.carrier × Y.carrier) × Y.carrier × Y.carrier)
+          (fun t => t.2.1.2) (fun t => t.2.2.1) (fun t => t.2.2.2))
+      · exact le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (conj_le_right _ _)
+      · exact le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_right _ _)
+      · exact conj_le_right _ _
+  single := by
+    simp only [subst_conj, ← subst_comp]
+    exact le_trans (le_conj
+      (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _))
+        (Y.symm_at (K := (X.carrier × Y.carrier) × Y.carrier × Y.carrier)
+          (fun s => s.1.2) (fun s => s.2.1)))
+      (le_trans (conj_le_right _ _) (conj_le_right _ _)))
+      (Y.trans_at (K := (X.carrier × Y.carrier) × Y.carrier × Y.carrier)
+        (fun s => s.2.1) (fun s => s.1.2) (fun s => s.2.2))
+  total := by
+    have h := subst_mono (fun q : X.carrier × Y.carrier => (q, q.2))
+      (ex_unit (Prod.fst : (X.carrier × Y.carrier) × Y.carrier → X.carrier × Y.carrier)
+        (conj (subst (fun p : (X.carrier × Y.carrier) × Y.carrier => (p.1.1, p.1.1)) X.rel)
+              (subst (fun p => (p.1.2, p.2)) Y.rel)))
+    simp only [← subst_comp] at h
+    refine le_trans ?_ (le_trans h (subst_id_le _))
+    simp only [prodPER, subst_conj, ← subst_comp]
+    exact le_refl _
+
+/-- First projection as a morphism. -/
+def Hom.fst (X Y : PER P) : Hom (prodPER X Y) X := Quotient.mk _ (proj1 X Y)
+
+/-- Second projection as a morphism. -/
+def Hom.snd (X Y : PER P) : Hom (prodPER X Y) Y := Quotient.mk _ (proj2 X Y)
+
+/-- **Functional relations are determined by containment**: if `F ⊆ F'` then they
+are equal as morphisms.  (Totality of `F` plus single-valuedness of `F'` force
+the reverse inclusion.)  This is the workhorse for universal properties. -/
+def funrel_eq_of_le {A B : PER P} (F F' : FunRel A B) (h : F.rel ⊢ F'.rel) :
+    F'.rel ⊢ F.rel := by
+  have hFex : F'.rel ⊢ ex (fun d : A.carrier × B.carrier × B.carrier => (d.1, d.2.2))
+      (subst (fun d : A.carrier × B.carrier × B.carrier => (d.1, d.2.1)) F.rel) := by
+    refine le_trans F'.strict_dom ?_
+    have hF := subst_mono (Prod.fst : A.carrier × B.carrier → A.carrier) F.total
+    rw [← subst_comp] at hF
+    refine le_trans hF ?_
+    refine subst_ex_elim (Prod.fst : A.carrier × B.carrier → A.carrier)
+      (Prod.fst : A.carrier × B.carrier → A.carrier) ?_
+    have hu := subst_mono
+      (fun s : { p : (A.carrier × B.carrier) × (A.carrier × B.carrier) //
+          Prod.fst p.1 = Prod.fst p.2 } => (s.1.1.1, s.1.2.2, s.1.1.2))
+      (ex_unit (fun d : A.carrier × B.carrier × B.carrier => (d.1, d.2.2))
+        (subst (fun d : A.carrier × B.carrier × B.carrier => (d.1, d.2.1)) F.rel))
+    rw [← subst_comp, ← subst_comp] at hu
+    refine le_trans ?_ hu
+    rw [show (fun s : { p : (A.carrier × B.carrier) × (A.carrier × B.carrier) //
+            Prod.fst p.1 = Prod.fst p.2 } => s.1.2)
+          = ((fun d : A.carrier × B.carrier × B.carrier => (d.1, d.2.1)) ∘
+              fun s => (s.1.1.1, s.1.2.2, s.1.1.2)) from by
+        funext s
+        show s.1.2 = (s.1.1.1, s.1.2.2)
+        rw [s.2]]
+    exact le_refl _
+  refine le_trans (le_trans (le_conj (le_refl _) hFex)
+    (frobenius (fun d : A.carrier × B.carrier × B.carrier => (d.1, d.2.2)) _ F'.rel))
+    (ex_adj_mpr ?_)
+  have hh := subst_mono (fun d : A.carrier × B.carrier × B.carrier => (d.1, d.2.1)) h
+  have hsingle := subst_mono
+    (fun d : A.carrier × B.carrier × B.carrier => (d.1, d.2.1, d.2.2)) F'.single
+  have hcong := subst_mono
+    (fun d : A.carrier × B.carrier × B.carrier => (d.1, d.1, d.2.1, d.2.2)) F.cong
+  have hsd := subst_mono (fun d : A.carrier × B.carrier × B.carrier => (d.1, d.2.1)) F.strict_dom
+  simp only [subst_conj, ← subst_comp] at hh hsingle hcong hsd
+  exact le_trans (le_conj (le_conj (conj_le_right _ _) (le_trans (conj_le_right _ _) hsd))
+    (le_trans (le_conj (le_trans (conj_le_right _ _) hh) (conj_le_left _ _)) hsingle)) hcong
+
+/-- Universal property: `π₁ ∘ ⟨f, g⟩ = f`. -/
+theorem Hom.fst_comp_pair {Z X Y : PER P} (f : Hom Z X) (g : Hom Z Y) :
+    Hom.comp (Hom.fst X Y) (Hom.pair f g) = f := by
+  induction f using Quotient.inductionOn with | _ F =>
+  induction g using Quotient.inductionOn with | _ G =>
+  have hfwd : compRel (pairFunRel F G) (proj1 X Y) ⊢ F.rel := by
+    refine ex_adj_mpr ?_
+    simp only [pairFunRel, proj1, subst_conj, ← subst_comp]
+    have hcong := subst_mono (fun d : Z.carrier × (X.carrier × Y.carrier) × X.carrier =>
+      (d.1, d.1, d.2.1.1, d.2.2)) F.cong
+    have hsd := subst_mono (fun d : Z.carrier × (X.carrier × Y.carrier) × X.carrier =>
+      (d.1, d.2.1.1)) F.strict_dom
+    simp only [subst_conj, ← subst_comp] at hcong hsd
+    refine le_trans (le_conj (le_conj ?_ ?_) ?_) hcong
+    · exact le_trans (conj_le_left _ _) (conj_le_left _ _)
+    · exact le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) hsd
+    · exact le_trans (conj_le_right _ _) (conj_le_left _ _)
+  exact Quotient.sound
+    ⟨⟨hfwd⟩, ⟨funrel_eq_of_le (compFunRel (pairFunRel F G) (proj1 X Y)) F hfwd⟩⟩
+
+/-- Universal property: `π₂ ∘ ⟨f, g⟩ = g`. -/
+theorem Hom.snd_comp_pair {Z X Y : PER P} (f : Hom Z X) (g : Hom Z Y) :
+    Hom.comp (Hom.snd X Y) (Hom.pair f g) = g := by
+  induction f using Quotient.inductionOn with | _ F =>
+  induction g using Quotient.inductionOn with | _ G =>
+  have hfwd : compRel (pairFunRel F G) (proj2 X Y) ⊢ G.rel := by
+    refine ex_adj_mpr ?_
+    simp only [pairFunRel, proj2, subst_conj, ← subst_comp]
+    have hcong := subst_mono (fun d : Z.carrier × (X.carrier × Y.carrier) × Y.carrier =>
+      (d.1, d.1, d.2.1.2, d.2.2)) G.cong
+    have hsd := subst_mono (fun d : Z.carrier × (X.carrier × Y.carrier) × Y.carrier =>
+      (d.1, d.2.1.2)) G.strict_dom
+    simp only [subst_conj, ← subst_comp] at hcong hsd
+    refine le_trans (le_conj (le_conj ?_ ?_) ?_) hcong
+    · exact le_trans (conj_le_left _ _) (conj_le_right _ _)
+    · exact le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) hsd
+    · exact le_trans (conj_le_right _ _) (conj_le_right _ _)
+  exact Quotient.sound
+    ⟨⟨hfwd⟩, ⟨funrel_eq_of_le (compFunRel (pairFunRel F G) (proj2 X Y)) G hfwd⟩⟩
+
+/-- Uniqueness (η): every map into a product is the pairing of its projections. -/
+theorem Hom.pair_fst_snd {Z X Y : PER P} (h : Hom Z (prodPER X Y)) :
+    Hom.pair (Hom.comp (Hom.fst X Y) h) (Hom.comp (Hom.snd X Y) h) = h := by
+  induction h using Quotient.inductionOn with | _ H =>
+  have fwd : H.rel ⊢
+      (pairFunRel (compFunRel H (proj1 X Y)) (compFunRel H (proj2 X Y))).rel := by
+    show H.rel ⊢ conj
+      (subst (fun p : Z.carrier × (X.carrier × Y.carrier) => (p.1, p.2.1)) (compRel H (proj1 X Y)))
+      (subst (fun p => (p.1, p.2.2)) (compRel H (proj2 X Y)))
+    refine le_conj ?_ ?_
+    · have hu := subst_mono (fun p : Z.carrier × (X.carrier × Y.carrier) => (p.1, p.2, p.2.1))
+        (ex_unit (fun d : Z.carrier × (X.carrier × Y.carrier) × X.carrier => (d.1, d.2.2))
+          (conj (subst (fun d : Z.carrier × (X.carrier × Y.carrier) × X.carrier => (d.1, d.2.1)) H.rel)
+                (subst (fun d => (d.2.1, d.2.2)) (proj1 X Y).rel)))
+      rw [← subst_comp] at hu
+      refine le_trans ?_ hu
+      rw [subst_conj, ← subst_comp, ← subst_comp]
+      refine le_conj (subst_id_ge _) ?_
+      show H.rel ⊢ subst (fun p : Z.carrier × (X.carrier × Y.carrier) => (p.2, p.2.1))
+        (conj (subst (fun q : (X.carrier × Y.carrier) × X.carrier => (q.1.1, q.2)) X.rel)
+              (subst (fun q : (X.carrier × Y.carrier) × X.carrier => (q.1.2, q.1.2)) Y.rel))
+      have hsc := H.strict_cod
+      simp only [prodPER, subst_conj, ← subst_comp] at hsc
+      simp only [subst_conj, ← subst_comp]
+      exact hsc
+    · have hu := subst_mono (fun p : Z.carrier × (X.carrier × Y.carrier) => (p.1, p.2, p.2.2))
+        (ex_unit (fun d : Z.carrier × (X.carrier × Y.carrier) × Y.carrier => (d.1, d.2.2))
+          (conj (subst (fun d : Z.carrier × (X.carrier × Y.carrier) × Y.carrier => (d.1, d.2.1)) H.rel)
+                (subst (fun d => (d.2.1, d.2.2)) (proj2 X Y).rel)))
+      rw [← subst_comp] at hu
+      refine le_trans ?_ hu
+      rw [subst_conj, ← subst_comp, ← subst_comp]
+      refine le_conj (subst_id_ge _) ?_
+      show H.rel ⊢ subst (fun p : Z.carrier × (X.carrier × Y.carrier) => (p.2, p.2.2))
+        (conj (subst (fun q : (X.carrier × Y.carrier) × Y.carrier => (q.1.1, q.1.1)) X.rel)
+              (subst (fun q : (X.carrier × Y.carrier) × Y.carrier => (q.1.2, q.2)) Y.rel))
+      have hsc := H.strict_cod
+      simp only [prodPER, subst_conj, ← subst_comp] at hsc
+      simp only [subst_conj, ← subst_comp]
+      exact hsc
+  exact Quotient.sound
+    ⟨⟨funrel_eq_of_le H (pairFunRel (compFunRel H (proj1 X Y)) (compFunRel H (proj2 X Y))) fwd⟩,
+     ⟨fwd⟩⟩
 
 end Tripos
 
