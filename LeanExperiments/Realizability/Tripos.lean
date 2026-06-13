@@ -119,6 +119,17 @@ def ex_adj_mpr {f : I → J} {φ : Pred A I} {ψ : Pred A J} (h : φ ⊢ subst f
     obtain ⟨b, hb, hb'⟩ := e.2 i a ha
     exact ⟨b, hb, hfi ▸ hb'⟩⟩
 
+/-- Beck–Chevalley for the realizability fibres, tracked by the identity: the
+realizer passes straight through, only the witness is repackaged. -/
+def beck_chevalley {K : Type w} (f : I → J) (g : K → J) (φ : Pred A I) :
+    subst g (ex f φ) ⊢
+      ex (fun s : { p : K × I // g p.1 = f p.2 } => s.1.1)
+         (subst (fun s : { p : K × I // g p.1 = f p.2 } => s.1.2) φ) :=
+  Squash.mk ⟨Hom.idElem, fun k a ha => by
+    obtain ⟨i, hfi, hphi⟩ := ha
+    refine ⟨a, ?_, ⟨(k, i), hfi.symm⟩, rfl, hphi⟩
+    rw [Hom.idElem_spec a]; exact Partial.mem_pure.mpr rfl⟩
+
 /-! ### Universal quantifier (along reindexing)
 
 The realizer of `∀_f φ` at `j` is a *function*: `e ⬝ b` realizes `φ i` for every
@@ -293,6 +304,23 @@ def uncurry {χ φ ψ : Pred A I} (h : χ ⊢ impl φ ψ) : conj χ φ ⊢ ψ :=
       rw [uncurryElem_spec, hfst, hsnd, Partial.eq_pure_of_mem hg]
       exact hb⟩
 
+/-! ### Frobenius reciprocity
+
+`ψ ∧ ∃_f φ ⊢ ∃_f (subst f ψ ∧ φ)`.  Because `ex` leaves realizers untouched and
+the conjunction's pairing is the same on both sides, the entailment is tracked by
+the identity element — the realizer `c` passes straight through. -/
+
+/-- Frobenius reciprocity for the realizability fibres, tracked by the identity. -/
+def frobenius (f : I → J) (φ : Pred A I) (ψ : Pred A J) :
+    conj ψ (ex f φ) ⊢ ex f (conj (subst f ψ) φ) :=
+  Squash.mk ⟨Hom.idElem, fun j c hc => by
+    obtain ⟨p, q, hp, hq, hpair⟩ := hc
+    obtain ⟨i, hfi, hphi⟩ := hq
+    refine ⟨c, ?_, i, hfi, p, q, ?_, hphi, hpair⟩
+    · rw [Hom.idElem_spec c]; exact Partial.mem_pure.mpr rfl
+    · show ψ (f i) p
+      rw [hfi]; exact hp⟩
+
 end
 
 /-! ### Disjunction (needs tagging) -/
@@ -385,6 +413,11 @@ instance instTripos [Pairing A] [Tagging A] : Tripos (Pred A) where
   subst_mono := Pred.subst_mono
   subst_id := fun _ => rfl
   subst_comp := fun _ _ _ => rfl
+  subst_top := fun _ => rfl
+  subst_bot := fun _ => rfl
+  subst_conj := fun _ _ _ => rfl
+  subst_disj := fun _ _ _ => rfl
+  subst_impl := fun _ _ _ => rfl
   top := Pred.top
   le_top := Pred.le_top
   bot := Pred.bot
@@ -406,6 +439,8 @@ instance instTripos [Pairing A] [Tagging A] : Tripos (Pred A) where
   all := Pred.all
   all_adj_mp := Pred.all_adj_mp
   all_adj_mpr := Pred.all_adj_mpr
+  frobenius := Pred.frobenius
+  beck_chevalley := Pred.beck_chevalley
   Prop' := Prop' A
   generic := Pred.generic
   char := fun φ => φ

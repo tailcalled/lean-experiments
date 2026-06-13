@@ -76,6 +76,19 @@ class Tripos (P : Type u → Type v) where
   curry : ∀ {I : Type u} {χ φ ψ : P I}, entails (conj χ φ) ψ → entails χ (impl φ ψ)
   /-- Uncurrying half of the `· ∧ φ ⊣ φ → ·` adjunction. -/
   uncurry : ∀ {I : Type u} {χ φ ψ : P I}, entails χ (impl φ ψ) → entails (conj χ φ) ψ
+  /-- Reindexing preserves `⊤`. -/
+  subst_top : ∀ {I J : Type u} (f : I → J), subst f (top : P J) = (top : P I)
+  /-- Reindexing preserves `⊥`. -/
+  subst_bot : ∀ {I J : Type u} (f : I → J), subst f (bot : P J) = (bot : P I)
+  /-- Reindexing preserves `∧`. -/
+  subst_conj : ∀ {I J : Type u} (f : I → J) (φ ψ : P J),
+    subst f (conj φ ψ) = conj (subst f φ) (subst f ψ)
+  /-- Reindexing preserves `∨`. -/
+  subst_disj : ∀ {I J : Type u} (f : I → J) (φ ψ : P J),
+    subst f (disj φ ψ) = disj (subst f φ) (subst f ψ)
+  /-- Reindexing preserves `→`. -/
+  subst_impl : ∀ {I J : Type u} (f : I → J) (φ ψ : P J),
+    subst f (impl φ ψ) = impl (subst f φ) (subst f ψ)
   /-- Existential quantification along reindexing. -/
   ex : {I J : Type u} → (I → J) → P I → P J
   /-- `∃_f ⊣ subst f`, forward. -/
@@ -92,6 +105,19 @@ class Tripos (P : Type u → Type v) where
   /-- `subst f ⊣ ∀_f`, backward. -/
   all_adj_mpr : ∀ {I J : Type u} {f : I → J} {φ : P I} {ψ : P J},
     entails ψ (all f φ) → entails (subst f ψ) φ
+  /-- **Frobenius reciprocity**: `∃_f` is a map of `P J`-modules.  The reverse
+  entailment is derivable from the adjunction; this — the harder direction — is
+  the genuine extra tripos axiom (left adjoints are stable under `∧`). -/
+  frobenius : ∀ {I J : Type u} (f : I → J) (φ : P I) (ψ : P J),
+    entails (conj ψ (ex f φ)) (ex f (conj (subst f ψ) φ))
+  /-- **Beck–Chevalley**: reindexing commutes with `∃` over a pullback square.
+  Here the pullback of `f : I → J` and `g : K → J` is the subtype
+  `{(k, i) // g k = f i}`.  The reverse entailment is derivable; this direction
+  is the genuine axiom. -/
+  beck_chevalley : ∀ {I J K : Type u} (f : I → J) (g : K → J) (φ : P I),
+    entails (subst g (ex f φ))
+      (ex (fun s : { p : K × I // g p.1 = f p.2 } => s.1.1)
+          (subst (fun s : { p : K × I // g p.1 = f p.2 } => s.1.2) φ))
   /-- The object of truth values. -/
   Prop' : Type u
   /-- The generic predicate over `Prop'`. -/
@@ -110,6 +136,95 @@ namespace Tripos
 instance instEntailsSubsingleton {P : Type u → Type v} [Tripos P] {I : Type u}
     (φ ψ : P I) : Subsingleton (Tripos.entails φ ψ) :=
   Tripos.entails_subsingleton φ ψ
+
+/-! ### Derived lemmas
+
+Standard consequences of the interface, used by the tripos→topos construction.
+All are *data* (entailment is a `Type`), so they are `def`s. -/
+
+variable {P : Type u → Type v} [Tripos P]
+
+/-- Trivial reindexing entailment (`φ ⊢ subst id φ`). -/
+def subst_id_ge {I : Type u} (φ : P I) : entails φ (subst id φ) := by
+  rw [subst_id]; exact le_refl φ
+
+/-- Trivial reindexing entailment (`subst id φ ⊢ φ`). -/
+def subst_id_le {I : Type u} (φ : P I) : entails (subst id φ) φ := by
+  rw [subst_id]; exact le_refl φ
+
+/-- The unit of `∃_f ⊣ subst f`. -/
+def ex_unit {I J : Type u} (f : I → J) (φ : P I) : entails φ (subst f (ex f φ)) :=
+  ex_adj_mp (le_refl _)
+
+/-- The counit of `subst f ⊣ ∀_f`. -/
+def all_counit {I J : Type u} (f : I → J) (φ : P I) : entails (subst f (all f φ)) φ :=
+  all_adj_mpr (le_refl _)
+
+/-- `∃_f` is monotone in its predicate. -/
+def ex_mono {I J : Type u} (f : I → J) {φ φ' : P I} (h : entails φ φ') :
+    entails (ex f φ) (ex f φ') :=
+  ex_adj_mpr (le_trans h (ex_unit f φ'))
+
+/-- `∀_f` is monotone in its predicate. -/
+def all_mono {I J : Type u} (f : I → J) {φ φ' : P I} (h : entails φ φ') :
+    entails (all f φ) (all f φ') :=
+  all_adj_mp (le_trans (all_counit f φ) h)
+
+/-- `∧` is monotone in both arguments. -/
+def conj_mono {I : Type u} {φ φ' ψ ψ' : P I} (h₁ : entails φ φ') (h₂ : entails ψ ψ') :
+    entails (conj φ ψ) (conj φ' ψ') :=
+  le_conj (le_trans (conj_le_left φ ψ) h₁) (le_trans (conj_le_right φ ψ) h₂)
+
+/-- `∨` is monotone in both arguments. -/
+def disj_mono {I : Type u} {φ φ' ψ ψ' : P I} (h₁ : entails φ φ') (h₂ : entails ψ ψ') :
+    entails (disj φ ψ) (disj φ' ψ') :=
+  disj_le (le_trans h₁ (left_le_disj φ' ψ')) (le_trans h₂ (right_le_disj φ' ψ'))
+
+/-- Symmetric form of `le_conj`: split a conjunction goal. -/
+def conj_assoc_left {I : Type u} (φ ψ θ : P I) :
+    entails (conj (conj φ ψ) θ) (conj φ (conj ψ θ)) :=
+  le_conj (le_trans (conj_le_left _ θ) (conj_le_left φ ψ))
+    (le_conj (le_trans (conj_le_left _ θ) (conj_le_right φ ψ)) (conj_le_right _ θ))
+
+/-- `∧` is commutative. -/
+def conj_comm {I : Type u} (φ ψ : P I) : entails (conj φ ψ) (conj ψ φ) :=
+  le_conj (conj_le_right φ ψ) (conj_le_left φ ψ)
+
+/-- `∃` is functorial: `∃_g ∘ ∃_f ⊢ ∃_{g∘f}`. -/
+def ex_comp_le {I J K : Type u} (f : I → J) (g : J → K) (φ : P I) :
+    entails (ex g (ex f φ)) (ex (g ∘ f) φ) :=
+  ex_adj_mpr (ex_adj_mpr (by rw [← subst_comp]; exact ex_unit (g ∘ f) φ))
+
+/-- `∃` is functorial: `∃_{g∘f} ⊢ ∃_g ∘ ∃_f`. -/
+def ex_comp_ge {I J K : Type u} (f : I → J) (g : J → K) (φ : P I) :
+    entails (ex (g ∘ f) φ) (ex g (ex f φ)) :=
+  ex_adj_mpr (by
+    rw [subst_comp]
+    exact le_trans (ex_unit f φ) (subst_mono f (ex_unit g (ex f φ))))
+
+/-- Frobenius, the adjunction-derivable direction. -/
+def frobenius_inv {I J : Type u} (f : I → J) (φ : P I) (ψ : P J) :
+    entails (ex f (conj (subst f ψ) φ)) (conj ψ (ex f φ)) :=
+  ex_adj_mpr (by
+    rw [subst_conj]
+    exact conj_mono (le_refl _) (ex_unit f φ))
+
+/-- Eliminate an existential trapped inside a conjunction on the left of an
+entailment: to prove `(∃_f φ) ∧ ψ ⊢ θ` it suffices to prove `(subst f ψ) ∧ φ ⊢
+subst f θ`.  This is the workhorse for composing functional relations. -/
+def conj_ex_elim {I J : Type u} (f : I → J) {φ : P I} {ψ θ : P J}
+    (h : entails (conj (subst f ψ) φ) (subst f θ)) :
+    entails (conj (ex f φ) ψ) θ :=
+  le_trans (conj_comm (ex f φ) ψ) (le_trans (frobenius f φ ψ) (ex_adj_mpr h))
+
+/-- Eliminate a reindexed existential on the left of an entailment, via
+Beck–Chevalley: to prove `subst g (∃_f φ) ⊢ ψ` it suffices to prove, over the
+pullback, `subst pbI φ ⊢ subst pbK ψ`. -/
+def subst_ex_elim {I J K : Type u} (f : I → J) (g : K → J) {φ : P I} {ψ : P K}
+    (h : entails (subst (fun s : { p : K × I // g p.1 = f p.2 } => s.1.2) φ)
+                 (subst (fun s : { p : K × I // g p.1 = f p.2 } => s.1.1) ψ)) :
+    entails (subst g (ex f φ)) ψ :=
+  le_trans (beck_chevalley f g φ) (ex_adj_mpr h)
 
 end Tripos
 
