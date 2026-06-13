@@ -990,6 +990,62 @@ theorem Hom.pair_fst_snd {Z X Y : PER P} (h : Hom Z (prodPER X Y)) :
     ⟨⟨funrel_eq_of_le H (pairFunRel (compFunRel H (proj1 X Y)) (compFunRel H (proj2 X Y))) fwd⟩,
      ⟨fwd⟩⟩
 
+/-! ### Subobject classifier (object) -/
+
+/-- The subobject classifier `Ω`: the tripos's object of truth values `Prop'`,
+with equality given by *realizable bi-implication* `S ↔ T`.  Every "proposition"
+exists (its extent `S ↔ S` is realized by the identity). -/
+def omega : PER P where
+  carrier := Prop' P
+  rel := conj (impl (subst Prod.fst generic) (subst Prod.snd generic))
+              (impl (subst Prod.snd generic) (subst Prod.fst generic))
+  symm := by
+    simp only [subst_conj, subst_impl, ← subst_comp]
+    exact conj_comm _ _
+  trans := by
+    simp only [subst_conj, subst_impl, ← subst_comp]
+    refine le_conj ?_ ?_
+    · exact le_trans (le_conj (le_trans (conj_le_left _ _) (conj_le_left _ _))
+        (le_trans (conj_le_right _ _) (conj_le_left _ _))) (impl_trans _ _ _)
+    · exact le_trans (le_conj (le_trans (conj_le_right _ _) (conj_le_right _ _))
+        (le_trans (conj_le_left _ _) (conj_le_right _ _))) (impl_trans _ _ _)
+
+/-! ### Subobject classifier (truth map) -/
+
+/-- The truth map `⊤ : 𝟙 → Ω` relates the point to a proposition `S` iff `S` holds
+(its relation is the generic predicate at the codomain coordinate). -/
+def truthFunRel : FunRel (terminal : PER P) (omega : PER P) where
+  rel := subst (fun p => p.2) (@Tripos.generic P _)
+  strict_dom := by
+    show _ ⊢ subst (fun p : PUnit × Prop' P => (p.1, p.1)) (top : P (PUnit × PUnit))
+    rw [subst_top]; exact le_top _
+  strict_cod := by
+    simp only [omega, subst_conj, subst_impl, ← subst_comp]
+    exact le_conj (curry (conj_le_left _ _)) (curry (conj_le_left _ _))
+  single := by
+    simp only [omega, subst_conj, subst_impl, ← subst_comp]
+    exact le_conj
+      (curry (le_trans (conj_le_left _ _) (conj_le_right _ _)))
+      (curry (le_trans (conj_le_left _ _) (conj_le_left _ _)))
+  cong := by
+    simp only [omega, subst_conj, subst_impl, ← subst_comp]
+    exact le_trans
+      (le_conj (le_refl _) (le_trans (conj_le_left _ _) (conj_le_left _ _)))
+      (uncurry (le_trans (conj_le_right _ _) (conj_le_left _ _)))
+  total := by
+    have hu := subst_mono
+      (fun x : PUnit => (x, @Tripos.char P _ PUnit (top : P PUnit) x))
+      (ex_unit (Prod.fst : PUnit × @Tripos.Prop' P _ → PUnit)
+        (subst (fun p => p.2) (@Tripos.generic P _)))
+    simp only [← subst_comp] at hu
+    refine le_trans ?_ (le_trans hu (subst_id_le _))
+    rw [show (Prod.snd ∘ fun x : PUnit => (x, @Tripos.char P _ PUnit (top : P PUnit) x))
+          = @Tripos.char P _ PUnit (top : P PUnit) from rfl, subst_char]
+    exact le_top _
+
+/-- The truth morphism `⊤ : 𝟙 → Ω`. -/
+def Hom.truth : Hom (terminal : PER P) (omega : PER P) := Quotient.mk _ truthFunRel
+
 end Tripos
 
 end LeanExperiments.Realizability

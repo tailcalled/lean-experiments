@@ -190,6 +190,14 @@ def conj_assoc_left {I : Type u} (φ ψ θ : P I) :
 def conj_comm {I : Type u} (φ ψ : P I) : entails (conj φ ψ) (conj ψ φ) :=
   le_conj (conj_le_right φ ψ) (conj_le_left φ ψ)
 
+/-- Implication composes: `(φ → ψ) ∧ (ψ → θ) ⊢ (φ → θ)`. -/
+def impl_trans {I : Type u} (φ ψ θ : P I) :
+    entails (conj (impl φ ψ) (impl ψ θ)) (impl φ θ) := by
+  apply curry
+  have hψ : entails (conj (conj (impl φ ψ) (impl ψ θ)) φ) ψ := uncurry (conj_le_left _ _)
+  exact le_trans (le_conj (le_refl _) hψ)
+    (uncurry (le_trans (conj_le_left _ _) (conj_le_right _ _)))
+
 /-- `∃` is functorial: `∃_g ∘ ∃_f ⊢ ∃_{g∘f}`. -/
 def ex_comp_le {I J K : Type u} (f : I → J) (g : J → K) (φ : P I) :
     entails (ex g (ex f φ)) (ex (g ∘ f) φ) :=
