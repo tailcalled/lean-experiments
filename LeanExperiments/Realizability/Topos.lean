@@ -1270,6 +1270,505 @@ theorem Hom.char_subobjOfFunRel (χ : FunRel X (omega : PER P)) :
   exact Quotient.sound
     ⟨⟨funrel_eq_of_le χ (charFunRel (subobjOfFunRel χ)) hbwd⟩, ⟨hbwd⟩⟩
 
+/-! ### Exponentials
+
+An element of `Y ^ X` is a *code* `f : X.carrier × Y.carrier → Prop'` for the
+relation `subst f generic`.  Two codes are `(Y^X)`-related when each codes a
+functional relation and the two relations are extensionally equal. -/
+
+/-- `f(x,y)`: the proposition coded by `f` at `(x, y)`, as a predicate over any
+index carrying a code and a point. -/
+abbrev ExpCar (X Y : PER P) : Type u := X.carrier × Y.carrier → Prop' P
+
+/-- Strictness of domain, as a predicate on codes. -/
+def expStrictDom (X Y : PER P) : P (ExpCar X Y) :=
+  all (fun t : ExpCar X Y × X.carrier × Y.carrier => t.1)
+    (impl (subst (fun t : ExpCar X Y × X.carrier × Y.carrier => t.1 (t.2.1, t.2.2))
+            (@Tripos.generic P _))
+          (subst (fun t : ExpCar X Y × X.carrier × Y.carrier => (t.2.1, t.2.1)) X.rel))
+
+/-- Strictness of codomain, as a predicate on codes. -/
+def expStrictCod (X Y : PER P) : P (ExpCar X Y) :=
+  all (fun t : ExpCar X Y × X.carrier × Y.carrier => t.1)
+    (impl (subst (fun t : ExpCar X Y × X.carrier × Y.carrier => t.1 (t.2.1, t.2.2))
+            (@Tripos.generic P _))
+          (subst (fun t : ExpCar X Y × X.carrier × Y.carrier => (t.2.2, t.2.2)) Y.rel))
+
+/-- Relational/extensional condition, as a predicate on codes. -/
+def expCongCond (X Y : PER P) : P (ExpCar X Y) :=
+  all (fun t : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier => t.1)
+    (impl (conj (conj
+        (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+          t.1 (t.2.1, t.2.2.1)) (@Tripos.generic P _))
+        (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+          (t.2.1, t.2.2.2.1)) X.rel))
+        (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+          (t.2.2.1, t.2.2.2.2)) Y.rel))
+      (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+        t.1 (t.2.2.2.1, t.2.2.2.2)) (@Tripos.generic P _)))
+
+/-- Single-valuedness, as a predicate on codes. -/
+def expSingleCond (X Y : PER P) : P (ExpCar X Y) :=
+  all (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier => t.1)
+    (impl (conj
+        (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier =>
+          t.1 (t.2.1, t.2.2.1)) (@Tripos.generic P _))
+        (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier =>
+          t.1 (t.2.1, t.2.2.2)) (@Tripos.generic P _)))
+      (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier =>
+        (t.2.2.1, t.2.2.2)) Y.rel))
+
+/-- Totality, as a predicate on codes. -/
+def expTotalCond (X Y : PER P) : P (ExpCar X Y) :=
+  all (fun t : ExpCar X Y × X.carrier => t.1)
+    (impl (subst (fun t : ExpCar X Y × X.carrier => (t.2, t.2)) X.rel)
+      (ex (fun u : ExpCar X Y × X.carrier × Y.carrier => (u.1, u.2.1))
+          (subst (fun u : ExpCar X Y × X.carrier × Y.carrier => u.1 (u.2.1, u.2.2))
+            (@Tripos.generic P _))))
+
+/-- A code is a functional relation. -/
+def expIsFunc (X Y : PER P) : P (ExpCar X Y) :=
+  conj (conj (conj (expStrictDom X Y) (expStrictCod X Y))
+             (conj (expCongCond X Y) (expSingleCond X Y))) (expTotalCond X Y)
+
+/-- Body of the extensional-equality predicate: `f(x,y) ↔ g(x,y)`. -/
+def expExtBody (X Y : PER P) :
+    P ((ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier) :=
+  conj (impl (subst (fun t : (ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+                t.1.1 (t.2.1, t.2.2)) (@Tripos.generic P _))
+             (subst (fun t : (ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+                t.1.2 (t.2.1, t.2.2)) (@Tripos.generic P _)))
+       (impl (subst (fun t : (ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+                t.1.2 (t.2.1, t.2.2)) (@Tripos.generic P _))
+             (subst (fun t : (ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+                t.1.1 (t.2.1, t.2.2)) (@Tripos.generic P _)))
+
+/-- Extensional equality of two codes. -/
+def expExtEq (X Y : PER P) : P (ExpCar X Y × ExpCar X Y) :=
+  all (Prod.fst : (ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier → ExpCar X Y × ExpCar X Y)
+    (expExtBody X Y)
+
+/-- Extensional equality is symmetric (`↔` is). -/
+def expExtEq_symm (X Y : PER P) : expExtEq X Y ⊢ subst Prod.swap (expExtEq X Y) := by
+  refine le_trans (all_mono _ ?_) (all_subst_fst Prod.swap (expExtBody X Y))
+  simp only [expExtBody, subst_conj, subst_impl, ← subst_comp]
+  exact conj_comm _ _
+
+/-- Extensional equality is transitive (`↔` is). -/
+def expExtEq_trans (X Y : PER P) :
+    conj (subst (fun t : ExpCar X Y × ExpCar X Y × ExpCar X Y => (t.1, t.2.1)) (expExtEq X Y))
+         (subst (fun t : ExpCar X Y × ExpCar X Y × ExpCar X Y => (t.2.1, t.2.2)) (expExtEq X Y))
+      ⊢ subst (fun t : ExpCar X Y × ExpCar X Y × ExpCar X Y => (t.1, t.2.2)) (expExtEq X Y) := by
+  refine le_trans (all_adj_mp ?_)
+    (all_subst_fst (fun t : ExpCar X Y × ExpCar X Y × ExpCar X Y => (t.1, t.2.2))
+      (expExtBody X Y))
+  have hc1 := subst_mono
+    (fun p : (ExpCar X Y × ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+      ((p.1.1, p.1.2.1), p.2))
+    (all_counit (Prod.fst : (ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier →
+      ExpCar X Y × ExpCar X Y) (expExtBody X Y))
+  have hc2 := subst_mono
+    (fun p : (ExpCar X Y × ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+      ((p.1.2.1, p.1.2.2), p.2))
+    (all_counit (Prod.fst : (ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier →
+      ExpCar X Y × ExpCar X Y) (expExtBody X Y))
+  simp only [← subst_comp] at hc1 hc2
+  simp only [expExtEq, subst_conj, ← subst_comp]
+  refine le_trans (conj_mono hc1 hc2) ?_
+  simp only [expExtBody, subst_conj, subst_impl, ← subst_comp]
+  refine le_conj
+    (le_trans (le_conj (le_trans (conj_le_left _ _) (conj_le_left _ _))
+      (le_trans (conj_le_right _ _) (conj_le_left _ _))) (impl_trans _ _ _))
+    (le_trans (le_conj (le_trans (conj_le_right _ _) (conj_le_right _ _))
+      (le_trans (conj_le_left _ _) (conj_le_right _ _))) (impl_trans _ _ _))
+
+/-- The exponential object `Y ^ X`. -/
+def expObj (X Y : PER P) : PER P where
+  carrier := ExpCar X Y
+  rel := conj (conj (subst Prod.fst (expIsFunc X Y)) (subst Prod.snd (expIsFunc X Y)))
+              (expExtEq X Y)
+  symm := by
+    simp only [subst_conj, ← subst_comp]
+    refine le_conj (le_conj ?_ ?_) ?_
+    · exact le_trans (conj_le_left _ _) (conj_le_right _ _)
+    · exact le_trans (conj_le_left _ _) (conj_le_left _ _)
+    · exact le_trans (conj_le_right _ _) (expExtEq_symm X Y)
+  trans := by
+    simp only [subst_conj, ← subst_comp]
+    refine le_conj (le_conj ?_ ?_) ?_
+    · exact le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_left _ _)
+    · exact le_trans (le_trans (conj_le_right _ _) (conj_le_left _ _)) (conj_le_right _ _)
+    · exact le_trans (le_conj (le_trans (conj_le_left _ _) (conj_le_right _ _))
+        (le_trans (conj_le_right _ _) (conj_le_right _ _))) (expExtEq_trans X Y)
+
+/-! ### Evaluation -/
+
+/-- The evaluation relation `((f, x), y)`: the domain pair exists and `f(x, y)`. -/
+def expEvalRel (X Y : PER P) :
+    P (((expObj X Y).carrier × X.carrier) × Y.carrier) :=
+  conj (subst (fun p : ((expObj X Y).carrier × X.carrier) × Y.carrier => (p.1, p.1))
+          (prodPER (expObj X Y) X).rel)
+       (subst (fun p : ((expObj X Y).carrier × X.carrier) × Y.carrier => p.1.1 (p.1.2, p.2))
+          (@Tripos.generic P _))
+
+/-- Evaluation is strict in the domain (trivially). -/
+def expEval_strict_dom (X Y : PER P) :
+    expEvalRel X Y ⊢ subst (fun p : ((expObj X Y).carrier × X.carrier) × Y.carrier => (p.1, p.1))
+      (prodPER (expObj X Y) X).rel :=
+  conj_le_left _ _
+
+/-- Evaluation is strict in the codomain: the value exists (from `f`'s `strictCod`). -/
+def expEval_strict_cod (X Y : PER P) :
+    expEvalRel X Y ⊢ subst (fun p : ((expObj X Y).carrier × X.carrier) × Y.carrier => (p.2, p.2))
+      Y.rel := by
+  have hinst := all_inst (fun t : ExpCar X Y × X.carrier × Y.carrier => t.1)
+    (fun p : ((expObj X Y).carrier × X.carrier) × Y.carrier => (p.1.1, p.1.2, p.2))
+    (impl (subst (fun t : ExpCar X Y × X.carrier × Y.carrier => t.1 (t.2.1, t.2.2))
+            (@Tripos.generic P _))
+          (subst (fun t : ExpCar X Y × X.carrier × Y.carrier => (t.2.2, t.2.2)) Y.rel))
+  simp only [subst_impl, ← subst_comp] at hinst
+  refine le_trans (le_conj ?_ (conj_le_right _ _)) (impl_mp _ _)
+  refine le_trans (conj_le_left _ _) (le_trans ?_ hinst)
+  simp only [prodPER, expObj, expIsFunc, subst_conj, ← subst_comp]
+  exact le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _)
+    (le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _) (conj_le_right _ _)))))
+
+/-- Evaluation is single-valued (from `f`'s `single`). -/
+def expEval_single (X Y : PER P) :
+    conj (subst (fun t : ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier => (t.1, t.2.1))
+            (expEvalRel X Y))
+         (subst (fun t : ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier => (t.1, t.2.2))
+            (expEvalRel X Y))
+      ⊢ subst (fun t : ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier => (t.2.1, t.2.2))
+          Y.rel := by
+  have hinst := all_inst (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier => t.1)
+    (fun t : ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier =>
+      (t.1.1, t.1.2, t.2.1, t.2.2))
+    (impl (conj (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier =>
+                  t.1 (t.2.1, t.2.2.1)) (@Tripos.generic P _))
+                (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier =>
+                  t.1 (t.2.1, t.2.2.2)) (@Tripos.generic P _)))
+          (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier =>
+            (t.2.2.1, t.2.2.2)) Y.rel))
+  simp only [subst_impl, subst_conj, ← subst_comp] at hinst
+  simp only [expEvalRel, subst_conj, ← subst_comp]
+  refine le_trans (le_conj (le_trans ?_ hinst)
+    (le_conj (le_trans (conj_le_left _ _) (conj_le_right _ _))
+             (le_trans (conj_le_right _ _) (conj_le_right _ _)))) (impl_mp _ _)
+  refine le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) ?_
+  simp only [prodPER, expObj, expIsFunc, subst_conj, ← subst_comp]
+  exact le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _)
+    (le_trans (conj_le_left _ _) (le_trans (conj_le_right _ _) (conj_le_right _ _)))))
+
+/-- Evaluation is total (from `f`'s `total`). -/
+def expEval_total (X Y : PER P) :
+    subst (fun d : (expObj X Y).carrier × X.carrier => (d, d)) (prodPER (expObj X Y) X).rel
+      ⊢ ex (Prod.fst : ((expObj X Y).carrier × X.carrier) × Y.carrier →
+              (expObj X Y).carrier × X.carrier)
+          (expEvalRel X Y) := by
+  have hreassoc :
+      ex (fun u : ExpCar X Y × X.carrier × Y.carrier => (u.1, u.2.1))
+         (subst (fun u : ExpCar X Y × X.carrier × Y.carrier => u.1 (u.2.1, u.2.2))
+            (@Tripos.generic P _))
+        ⊢ ex (Prod.fst : ((expObj X Y).carrier × X.carrier) × Y.carrier →
+                (expObj X Y).carrier × X.carrier)
+            (subst (fun p : ((expObj X Y).carrier × X.carrier) × Y.carrier =>
+              p.1.1 (p.1.2, p.2)) (@Tripos.generic P _)) := by
+    refine ex_adj_mpr ?_
+    have h := subst_mono (fun u : ExpCar X Y × X.carrier × Y.carrier => ((u.1, u.2.1), u.2.2))
+      (ex_unit (Prod.fst : ((expObj X Y).carrier × X.carrier) × Y.carrier →
+          (expObj X Y).carrier × X.carrier)
+        (subst (fun p : ((expObj X Y).carrier × X.carrier) × Y.carrier =>
+          p.1.1 (p.1.2, p.2)) (@Tripos.generic P _)))
+    erw [← subst_comp, ← subst_comp] at h
+    exact h
+  have hcounit := all_counit (fun t : ExpCar X Y × X.carrier => t.1)
+    (impl (subst (fun t : ExpCar X Y × X.carrier => (t.2, t.2)) X.rel)
+          (ex (fun u : ExpCar X Y × X.carrier × Y.carrier => (u.1, u.2.1))
+              (subst (fun u : ExpCar X Y × X.carrier × Y.carrier => u.1 (u.2.1, u.2.2))
+                (@Tripos.generic P _))))
+  have htot :
+      subst (fun d : (expObj X Y).carrier × X.carrier => (d, d)) (prodPER (expObj X Y) X).rel
+        ⊢ ex (fun u : ExpCar X Y × X.carrier × Y.carrier => (u.1, u.2.1))
+            (subst (fun u : ExpCar X Y × X.carrier × Y.carrier => u.1 (u.2.1, u.2.2))
+              (@Tripos.generic P _)) := by
+    refine le_trans (le_conj ?_ ?_)
+      (impl_mp (subst (fun t : ExpCar X Y × X.carrier => (t.2, t.2)) X.rel) _)
+    · refine le_trans ?_ hcounit
+      simp only [prodPER, expObj, expIsFunc, subst_conj, ← subst_comp]
+      exact le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _)
+        (le_trans (conj_le_left _ _) (conj_le_right _ _)))
+    · simp only [prodPER, expObj, expIsFunc, subst_conj, ← subst_comp]
+      exact conj_le_right _ _
+  refine le_trans (le_conj (le_refl _) (le_trans htot hreassoc)) ?_
+  refine le_trans (frobenius (Prod.fst : ((expObj X Y).carrier × X.carrier) × Y.carrier →
+      (expObj X Y).carrier × X.carrier)
+    (subst (fun p : ((expObj X Y).carrier × X.carrier) × Y.carrier => p.1.1 (p.1.2, p.2))
+      (@Tripos.generic P _))
+    (subst (fun d : (expObj X Y).carrier × X.carrier => (d, d)) (prodPER (expObj X Y) X).rel))
+    (ex_mono _ ?_)
+  simp only [expEvalRel]
+  refine conj_mono ?_ (le_refl _)
+  rw [← subst_comp]
+  exact le_refl _
+
+/-- Evaluation is relational (from `f`'s `cong` and `f ≈ f'`). -/
+def expEval_cong (X Y : PER P) :
+    conj (conj (subst (fun t : ((expObj X Y).carrier × X.carrier) ×
+                  ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier => (t.1, t.2.2.1))
+                (expEvalRel X Y))
+               (subst (fun t : ((expObj X Y).carrier × X.carrier) ×
+                  ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier => (t.1, t.2.1))
+                (prodPER (expObj X Y) X).rel))
+         (subst (fun t : ((expObj X Y).carrier × X.carrier) ×
+            ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier => (t.2.2.1, t.2.2.2)) Y.rel)
+      ⊢ subst (fun t : ((expObj X Y).carrier × X.carrier) ×
+          ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier => (t.2.1, t.2.2.2))
+          (expEvalRel X Y) := by
+  have hcong := all_inst (fun s : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier => s.1)
+    (fun t : ((expObj X Y).carrier × X.carrier) ×
+        ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier =>
+      (t.1.1, t.1.2, t.2.2.1, t.2.1.2, t.2.2.2))
+    (impl (conj (conj
+        (subst (fun s : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+          s.1 (s.2.1, s.2.2.1)) (@Tripos.generic P _))
+        (subst (fun s : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+          (s.2.1, s.2.2.2.1)) X.rel))
+        (subst (fun s : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+          (s.2.2.1, s.2.2.2.2)) Y.rel))
+      (subst (fun s : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+        s.1 (s.2.2.2.1, s.2.2.2.2)) (@Tripos.generic P _)))
+  have hext := all_inst
+    (Prod.fst : (ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier → ExpCar X Y × ExpCar X Y)
+    (fun t : ((expObj X Y).carrier × X.carrier) ×
+        ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier =>
+      ((t.1.1, t.2.1.1), (t.2.1.2, t.2.2.2)))
+    (expExtBody X Y)
+  simp only [subst_impl, subst_conj, ← subst_comp] at hcong
+  simp only [expEvalRel, subst_conj, ← subst_comp]
+  refine le_conj ?_ ?_
+  · exact le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _))
+      ((prodPER (expObj X Y) X).refl_right_at
+        (K := ((expObj X Y).carrier × X.carrier) ×
+          ((expObj X Y).carrier × X.carrier) × Y.carrier × Y.carrier)
+        (fun t => t.1) (fun t => t.2.1))
+  · exact le_trans (le_conj
+      (le_trans (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _))
+          (by simp only [prodPER, expObj, expIsFunc, subst_conj, ← subst_comp]
+              exact le_trans (conj_le_left _ _) (conj_le_right _ _)))
+        (le_trans hext (by
+          simp only [expExtBody, subst_conj, subst_impl, ← subst_comp]
+          exact conj_le_left _ _)))
+      (le_trans (le_conj
+          (le_trans (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _))
+              (by simp only [prodPER, expObj, expIsFunc, subst_conj, ← subst_comp]
+                  exact le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _)
+                    (le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _)
+                      (le_trans (conj_le_right _ _) (conj_le_left _ _)))))))
+            hcong)
+          (le_conj (le_conj
+              (le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_right _ _))
+              (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _))
+                (by simp only [prodPER, subst_conj, ← subst_comp]; exact conj_le_right _ _)))
+            (conj_le_right _ _)))
+        (impl_mp _ _)))
+      (impl_mp _ _)
+
+/-- The evaluation morphism `Y ^ X × X ⟶ Y`. -/
+def expEval (X Y : PER P) : FunRel (prodPER (expObj X Y) X) Y where
+  rel := expEvalRel X Y
+  strict_dom := expEval_strict_dom X Y
+  strict_cod := expEval_strict_cod X Y
+  cong := expEval_cong X Y
+  single := expEval_single X Y
+  total := expEval_total X Y
+
+/-- The evaluation morphism as a `Hom`. -/
+def Hom.eval (X Y : PER P) : Hom (prodPER (expObj X Y) X) Y := Quotient.mk _ (expEval X Y)
+
+/-! ### Currying (the exponential transpose) -/
+
+/-- Body of the transpose relation: `f(x,y) ↔ g((z,x),y)`. -/
+def ΛBody (g : FunRel (prodPER Z X) Y) :
+    P ((Z.carrier × ExpCar X Y) × X.carrier × Y.carrier) :=
+  conj (impl (subst (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier =>
+                q.1.2 (q.2.1, q.2.2)) (@Tripos.generic P _))
+             (subst (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier =>
+                ((q.1.1, q.2.1), q.2.2)) g.rel))
+       (impl (subst (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier =>
+                ((q.1.1, q.2.1), q.2.2)) g.rel)
+             (subst (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier =>
+                q.1.2 (q.2.1, q.2.2)) (@Tripos.generic P _)))
+
+/-- The transpose relation `z ↦ f` where `f` codes `g(z, ·)`. -/
+def ΛRel (g : FunRel (prodPER Z X) Y) : P (Z.carrier × ExpCar X Y) :=
+  conj (subst (fun p : Z.carrier × ExpCar X Y => (p.1, p.1)) Z.rel)
+    (all (Prod.fst : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier → Z.carrier × ExpCar X Y)
+      (ΛBody g))
+
+/-- The transpose is strict in the domain (trivially). -/
+def Λ_strict_dom (g : FunRel (prodPER Z X) Y) :
+    ΛRel g ⊢ subst (fun p : Z.carrier × ExpCar X Y => (p.1, p.1)) Z.rel :=
+  conj_le_left _ _
+
+/-- `g` as a predicate over `Z × (X × Y)` (reassociated). -/
+def Λcg (g : FunRel (prodPER Z X) Y) : P (Z.carrier × (X.carrier × Y.carrier)) :=
+  subst (fun w : Z.carrier × (X.carrier × Y.carrier) => ((w.1, w.2.1), w.2.2)) g.rel
+
+/-- The transpose is total: the witness code for `z` is `char (g(z, ·))`. -/
+def Λ_total (g : FunRel (prodPER Z X) Y) :
+    subst (fun z : Z.carrier => (z, z)) Z.rel
+      ⊢ ex (Prod.fst : Z.carrier × ExpCar X Y → Z.carrier) (ΛRel g) := by
+  have hu := subst_mono
+    (fun z : Z.carrier => (z, fun p : X.carrier × Y.carrier => Tripos.char (Λcg g) (z, p)))
+    (ex_unit (Prod.fst : Z.carrier × ExpCar X Y → Z.carrier) (ΛRel g))
+  simp only [← subst_comp] at hu
+  refine le_trans ?_ (le_trans hu (subst_id_le _))
+  simp only [ΛRel, subst_conj, ← subst_comp]
+  refine le_conj (le_refl _) ?_
+  refine le_trans (all_adj_mp ?_)
+    (all_subst_fst
+      (fun z : Z.carrier => (z, fun p : X.carrier × Y.carrier => Tripos.char (Λcg g) (z, p)))
+      (ΛBody g))
+  simp only [ΛBody, subst_impl, subst_conj, ← subst_comp, Function.comp_def]
+  rw [show (fun p : Z.carrier × X.carrier × Y.carrier =>
+        Tripos.char (Λcg g) (p.1, (p.2.1, p.2.2)))
+      = (Tripos.char (Λcg g)) ∘ (fun p : Z.carrier × X.carrier × Y.carrier =>
+          (p.1, (p.2.1, p.2.2))) from rfl, subst_comp, subst_char, Λcg, ← subst_comp]
+  refine le_trans (le_top _) (le_conj (id_impl _) (id_impl _))
+
+/-- Extensional equality of `f` with itself (reflexivity of `↔`). -/
+def Λ_extEq_refl (g : FunRel (prodPER Z X) Y) :
+    ΛRel g ⊢ subst (fun p : Z.carrier × ExpCar X Y => (p.2, p.2)) (expExtEq X Y) := by
+  refine le_trans (all_adj_mp ?_)
+    (all_subst_fst (fun p : Z.carrier × ExpCar X Y => (p.2, p.2)) (expExtBody X Y))
+  simp only [expExtBody, subst_conj, subst_impl, ← subst_comp]
+  exact le_trans (le_top _) (le_conj (id_impl _) (id_impl _))
+
+/-- The transposed code `f` inherits strictness-of-domain from `g`. -/
+def Λ_strictDom_f (g : FunRel (prodPER Z X) Y) :
+    ΛRel g ⊢ subst (fun p : Z.carrier × ExpCar X Y => p.2) (expStrictDom X Y) := by
+  refine le_trans (all_adj_mp ?_)
+    (all_subst_fst (fun p : Z.carrier × ExpCar X Y => p.2)
+      (impl (subst (fun t : ExpCar X Y × X.carrier × Y.carrier => t.1 (t.2.1, t.2.2))
+              (@Tripos.generic P _))
+            (subst (fun t : ExpCar X Y × X.carrier × Y.carrier => (t.2.1, t.2.1)) X.rel)))
+  simp only [ΛRel, subst_impl, subst_conj, ← subst_comp]
+  apply curry
+  have hg := subst_mono
+    (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier => ((q.1.1, q.2.1), q.2.2))
+    g.strict_dom
+  simp only [← subst_comp] at hg
+  refine le_trans (le_conj
+    (le_trans (conj_le_left _ _)
+      (le_trans (conj_le_right _ _) (le_trans (all_counit _ _) (conj_le_left _ _))))
+    (conj_le_right _ _))
+    (le_trans (impl_mp _ _) (le_trans hg ?_))
+  simp only [prodPER, subst_conj, ← subst_comp]
+  exact conj_le_right _ _
+
+/-- The transposed code `f` inherits strictness-of-codomain from `g`. -/
+def Λ_strictCod_f (g : FunRel (prodPER Z X) Y) :
+    ΛRel g ⊢ subst (fun p : Z.carrier × ExpCar X Y => p.2) (expStrictCod X Y) := by
+  refine le_trans (all_adj_mp ?_)
+    (all_subst_fst (fun p : Z.carrier × ExpCar X Y => p.2)
+      (impl (subst (fun t : ExpCar X Y × X.carrier × Y.carrier => t.1 (t.2.1, t.2.2))
+              (@Tripos.generic P _))
+            (subst (fun t : ExpCar X Y × X.carrier × Y.carrier => (t.2.2, t.2.2)) Y.rel)))
+  simp only [ΛRel, subst_impl, subst_conj, ← subst_comp]
+  apply curry
+  have hg := subst_mono
+    (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier => ((q.1.1, q.2.1), q.2.2))
+    g.strict_cod
+  erw [← subst_comp] at hg
+  exact le_trans (le_conj
+    (le_trans (conj_le_left _ _)
+      (le_trans (conj_le_right _ _) (le_trans (all_counit _ _) (conj_le_left _ _))))
+    (conj_le_right _ _))
+    (le_trans (impl_mp _ _) hg)
+
+/-- The transposed code `f` inherits single-valuedness from `g`. -/
+def Λ_singleCond_f (g : FunRel (prodPER Z X) Y) :
+    ΛRel g ⊢ subst (fun p : Z.carrier × ExpCar X Y => p.2) (expSingleCond X Y) := by
+  refine le_trans (all_adj_mp ?_)
+    (all_subst_fst (fun p : Z.carrier × ExpCar X Y => p.2)
+      (impl (conj (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier =>
+                    t.1 (t.2.1, t.2.2.1)) (@Tripos.generic P _))
+                  (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier =>
+                    t.1 (t.2.1, t.2.2.2)) (@Tripos.generic P _)))
+            (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × Y.carrier =>
+              (t.2.2.1, t.2.2.2)) Y.rel)))
+  simp only [ΛRel, subst_impl, subst_conj, ← subst_comp]
+  apply curry
+  have hgs := subst_mono
+    (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier × Y.carrier =>
+      ((q.1.1, q.2.1), q.2.2.1, q.2.2.2)) g.single
+  simp only [prodPER, subst_conj, ← subst_comp] at hgs
+  have hb1 := all_inst
+    (Prod.fst : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier → Z.carrier × ExpCar X Y)
+    (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier × Y.carrier => (q.1, (q.2.1, q.2.2.1)))
+    (ΛBody g)
+  have hb2 := all_inst
+    (Prod.fst : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier → Z.carrier × ExpCar X Y)
+    (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier × Y.carrier => (q.1, (q.2.1, q.2.2.2)))
+    (ΛBody g)
+  refine le_trans (le_conj
+    (le_trans (le_conj
+        (le_trans (conj_le_left _ _) (le_trans (conj_le_right _ _) (le_trans hb1
+          (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_left _ _))))
+        (le_trans (conj_le_right _ _) (conj_le_left _ _)))
+      (impl_mp _ _))
+    (le_trans (le_conj
+        (le_trans (conj_le_left _ _) (le_trans (conj_le_right _ _) (le_trans hb2
+          (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_left _ _))))
+        (le_trans (conj_le_right _ _) (conj_le_right _ _)))
+      (impl_mp _ _)))
+    hgs
+
+/-- The transposed code `f` inherits relationality from `g`. -/
+def Λ_congCond_f (g : FunRel (prodPER Z X) Y) :
+    ΛRel g ⊢ subst (fun p : Z.carrier × ExpCar X Y => p.2) (expCongCond X Y) := by
+  refine le_trans (all_adj_mp ?_)
+    (all_subst_fst (fun p : Z.carrier × ExpCar X Y => p.2)
+      (impl (conj (conj
+          (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+            t.1 (t.2.1, t.2.2.1)) (@Tripos.generic P _))
+          (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+            (t.2.1, t.2.2.2.1)) X.rel))
+          (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+            (t.2.2.1, t.2.2.2.2)) Y.rel))
+        (subst (fun t : ExpCar X Y × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+          t.1 (t.2.2.2.1, t.2.2.2.2)) (@Tripos.generic P _))))
+  simp only [ΛRel, subst_impl, subst_conj, ← subst_comp]
+  apply curry
+  have hgc := subst_mono
+    (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+      ((q.1.1, q.2.1), (q.1.1, q.2.2.2.1), q.2.2.1, q.2.2.2.2)) g.cong
+  simp only [prodPER, subst_conj, ← subst_comp] at hgc
+  have hbf := all_inst
+    (Prod.fst : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier → Z.carrier × ExpCar X Y)
+    (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+      (q.1, (q.2.1, q.2.2.1))) (ΛBody g)
+  have hbb := all_inst
+    (Prod.fst : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier → Z.carrier × ExpCar X Y)
+    (fun q : (Z.carrier × ExpCar X Y) × X.carrier × Y.carrier × X.carrier × Y.carrier =>
+      (q.1, (q.2.2.2.1, q.2.2.2.2))) (ΛBody g)
+  refine le_trans (le_conj
+      (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (le_trans hbb
+        (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_right _ _)))
+      (le_trans (le_conj (le_conj
+          (le_trans (le_conj
+              (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (le_trans hbf
+                (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_left _ _)))
+              (le_trans (le_trans (conj_le_right _ _) (conj_le_left _ _)) (conj_le_left _ _)))
+            (impl_mp _ _))
+          (le_conj
+            (le_trans (conj_le_left _ _) (conj_le_left _ _))
+            (le_trans (le_trans (conj_le_right _ _) (conj_le_left _ _)) (conj_le_right _ _))))
+        (le_trans (conj_le_right _ _) (conj_le_right _ _)))
+        hgc))
+    (impl_mp _ _)
+
 end Tripos
 
 end LeanExperiments.Realizability

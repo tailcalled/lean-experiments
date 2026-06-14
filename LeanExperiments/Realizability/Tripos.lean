@@ -190,6 +190,15 @@ def all_adj_mpr {f : I → J} {φ : Pred A I} {ψ : Pred A J} (h : ψ ⊢ all f 
       rw [allMprElem_spec, Partial.eq_pure_of_mem hE]
       exact hc⟩
 
+/-- Beck–Chevalley for `∀`: identity-tracked, just like `ex`'s. -/
+def all_beck_chevalley {K : Type w} (f : I → J) (g : K → J) (φ : Pred A I) :
+    all (fun s : { p : K × I // g p.1 = f p.2 } => s.1.1)
+        (subst (fun s : { p : K × I // g p.1 = f p.2 } => s.1.2) φ)
+      ⊢ subst g (all f φ) :=
+  Squash.mk ⟨Hom.idElem, fun k e he => by
+    refine ⟨e, by rw [Hom.idElem_spec e]; exact Partial.mem_pure.mpr rfl, fun i hfi b => ?_⟩
+    exact he ⟨(k, i), hfi.symm⟩ rfl b⟩
+
 /-! ### Conjunction (needs pairing) -/
 
 section
@@ -441,6 +450,7 @@ instance instTripos [Pairing A] [Tagging A] : Tripos (Pred A) where
   all_adj_mpr := Pred.all_adj_mpr
   frobenius := Pred.frobenius
   beck_chevalley := Pred.beck_chevalley
+  all_beck_chevalley := Pred.all_beck_chevalley
   Prop' := Prop' A
   generic := Pred.generic
   char := fun φ => φ

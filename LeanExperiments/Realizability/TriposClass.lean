@@ -118,6 +118,12 @@ class Tripos (P : Type u → Type v) where
     entails (subst g (ex f φ))
       (ex (fun s : { p : K × I // g p.1 = f p.2 } => s.1.1)
           (subst (fun s : { p : K × I // g p.1 = f p.2 } => s.1.2) φ))
+  /-- **Beck–Chevalley for `∀`**: reindexing commutes with `∀` over a pullback.
+  The genuine extra axiom is this (the reverse is derivable from the adjunction). -/
+  all_beck_chevalley : ∀ {I J K : Type u} (f : I → J) (g : K → J) (φ : P I),
+    entails (all (fun s : { p : K × I // g p.1 = f p.2 } => s.1.1)
+                 (subst (fun s : { p : K × I // g p.1 = f p.2 } => s.1.2) φ))
+            (subst g (all f φ))
   /-- The object of truth values. -/
   Prop' : Type u
   /-- The generic predicate over `Prop'`. -/
@@ -173,6 +179,42 @@ def ex_mono {I J : Type u} (f : I → J) {φ φ' : P I} (h : entails φ φ') :
 def all_mono {I J : Type u} (f : I → J) {φ φ' : P I} (h : entails φ φ') :
     entails (all f φ) (all f φ') :=
   all_adj_mp (le_trans (all_counit f φ) h)
+
+/-- Product Beck–Chevalley for `∀`: reindexing the kept factor commutes with
+universal quantification over the other factor. -/
+def all_subst_fst {J K L : Type u} (h : K → J) (φ : P (J × L)) :
+    entails (all (Prod.fst : K × L → K) (subst (fun p : K × L => (h p.1, p.2)) φ))
+            (subst h (all (Prod.fst : J × L → J) φ)) := by
+  refine le_trans (all_adj_mp ?_) (all_beck_chevalley (Prod.fst : J × L → J) h φ)
+  have hc := subst_mono
+    (fun s : { p : K × (J × L) // h p.1 = Prod.fst p.2 } => (s.1.1, s.1.2.2))
+    (all_counit (Prod.fst : K × L → K) (subst (fun p : K × L => (h p.1, p.2)) φ))
+  simp only [← subst_comp] at hc
+  refine le_trans hc (subst_congr ?_ φ)
+  funext s
+  exact Prod.ext_iff.mpr ⟨s.2, rfl⟩
+
+/-- Product Beck–Chevalley for `∃`: reindexing the kept factor commutes with
+existential quantification over the other factor. -/
+def ex_subst_fst {J K L : Type u} (h : K → J) (φ : P (J × L)) :
+    entails (subst h (ex (Prod.fst : J × L → J) φ))
+            (ex (Prod.fst : K × L → K) (subst (fun p : K × L => (h p.1, p.2)) φ)) := by
+  refine le_trans (beck_chevalley (Prod.fst : J × L → J) h φ) (ex_adj_mpr ?_)
+  have hu := subst_mono
+    (fun s : { p : K × (J × L) // h p.1 = Prod.fst p.2 } => (s.1.1, s.1.2.2))
+    (ex_unit (Prod.fst : K × L → K) (subst (fun p : K × L => (h p.1, p.2)) φ))
+  simp only [← subst_comp] at hu
+  refine le_trans (subst_congr ?_ φ) hu
+  funext s
+  exact Prod.ext_iff.mpr ⟨s.2.symm, rfl⟩
+
+/-- Instantiate a `∀`: `(∀_f φ)` reindexed along `f ∘ h` entails `φ` reindexed
+along `h`.  The workhorse for using a universally-quantified hypothesis at a
+specific point. -/
+def all_inst {I J K : Type u} (f : I → J) (h : K → I) (φ : P I) :
+    entails (subst (fun k => f (h k)) (all f φ)) (subst h φ) := by
+  rw [show (fun k => f (h k)) = f ∘ h from rfl, subst_comp]
+  exact subst_mono h (all_counit f φ)
 
 /-- `∧` is monotone in both arguments. -/
 def conj_mono {I : Type u} {φ φ' ψ ψ' : P I} (h₁ : entails φ φ') (h₂ : entails ψ ψ') :
