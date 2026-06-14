@@ -1200,6 +1200,76 @@ def predOfFunRel_strict (χ : FunRel X (omega : PER P)) :
   rw [← subst_comp]
   exact le_trans (conj_le_left _ _) χ.strict_dom
 
+/-- The recovered predicate is `ρ_X`-closed. -/
+def predOfFunRel_closed (χ : FunRel X (omega : PER P)) :
+    conj (subst (Prod.fst : X.carrier × X.carrier → X.carrier) (predOfFunRel χ)) X.rel
+      ⊢ subst (Prod.snd : X.carrier × X.carrier → X.carrier) (predOfFunRel χ) := by
+  refine le_trans (conj_mono
+    (beck_chevalley (Prod.fst : X.carrier × Prop' P → X.carrier)
+      (Prod.fst : X.carrier × X.carrier → X.carrier)
+      (conj χ.rel (subst (fun p : X.carrier × Prop' P => p.2) (@Tripos.generic P _))))
+    (le_refl _)) (conj_ex_elim _ ?_)
+  have hu := subst_mono
+    (fun s : { p : (X.carrier × X.carrier) × (X.carrier × Prop' P) // Prod.fst p.1 = Prod.fst p.2 } =>
+      (s.1.1.2, s.1.2.2))
+    (ex_unit (Prod.fst : X.carrier × Prop' P → X.carrier)
+      (conj χ.rel (subst (fun p : X.carrier × Prop' P => p.2) (@Tripos.generic P _))))
+  rw [← subst_comp] at hu
+  rw [← subst_comp]
+  refine le_trans ?_ hu
+  have hcong := subst_mono
+    (fun s : { p : (X.carrier × X.carrier) × (X.carrier × Prop' P) // Prod.fst p.1 = Prod.fst p.2 } =>
+      (s.1.2.1, s.1.1.2, s.1.2.2, s.1.2.2)) χ.cong
+  have hcod := subst_mono
+    (fun s : { p : (X.carrier × X.carrier) × (X.carrier × Prop' P) // Prod.fst p.1 = Prod.fst p.2 } =>
+      s.1.2) χ.strict_cod
+  simp only [omega, subst_conj, subst_impl, ← subst_comp] at hcong hcod ⊢
+  refine le_conj ?_ (le_trans (conj_le_right _ _) (conj_le_right _ _))
+  refine le_trans (le_conj (le_conj ?_ ?_) ?_) hcong
+  · exact le_trans (conj_le_right _ _) (conj_le_left _ _)
+  · refine le_trans (conj_le_left _ _) (subst_congr ?_ X.rel)
+    funext s
+    exact Prod.ext_iff.mpr ⟨s.2, rfl⟩
+  · exact le_trans (le_trans (conj_le_right _ _) (conj_le_left _ _)) hcod
+
+/-- A morphism `X → Ω` recovers a subobject of `X` (pullback of `⊤`). -/
+def subobjOfFunRel (χ : FunRel X (omega : PER P)) : StrictPred X where
+  pred := predOfFunRel χ
+  strict := predOfFunRel_strict χ
+  closed := predOfFunRel_closed χ
+
+/-- Classification (other round-trip): the characteristic map of the subobject
+recovered from `χ` is `χ` itself.  With `χ_φ` classifying `φ`, this gives the full
+bijection `Hom X Ω ≅ Sub(X)`. -/
+theorem Hom.char_subobjOfFunRel (χ : FunRel X (omega : PER P)) :
+    Hom.char (subobjOfFunRel χ) = Quotient.mk _ χ := by
+  have hbwd : χ.rel ⊢ (charFunRel (subobjOfFunRel χ)).rel := by
+    show χ.rel ⊢ charRel (subobjOfFunRel χ)
+    refine le_conj χ.strict_dom (le_conj ?_ ?_)
+    · -- impl (φ_χ) S, via χ.single
+      apply curry
+      refine le_trans (conj_comm _ _) (le_trans (conj_mono
+        (beck_chevalley (Prod.fst : X.carrier × Prop' P → X.carrier)
+          (Prod.fst : X.carrier × Prop' P → X.carrier)
+          (conj χ.rel (subst (fun p : X.carrier × Prop' P => p.2) (@Tripos.generic P _))))
+        (le_refl _)) (conj_ex_elim _ ?_))
+      erw [← subst_comp]
+      have hsingle := subst_mono
+        (fun s : { p : (X.carrier × Prop' P) × (X.carrier × Prop' P) //
+            Prod.fst p.1 = Prod.fst p.2 } => (s.1.1.1, s.1.1.2, s.1.2.2)) χ.single
+      simp only [omega, subst_conj, subst_impl, ← subst_comp, Function.comp_def] at hsingle
+      simp only [subst_conj, ← subst_comp, Function.comp_def]
+      refine le_trans (le_conj (le_trans (le_trans (le_conj (conj_le_left _ _) ?_) hsingle)
+        (conj_le_right _ _)) (le_trans (conj_le_right _ _) (conj_le_right _ _))) (impl_mp _ _)
+      refine le_trans (le_trans (conj_le_right _ _) (conj_le_left _ _)) (subst_congr ?_ χ.rel)
+      funext s
+      exact Prod.ext_iff.mpr ⟨s.2.symm, rfl⟩
+    · -- impl S (φ_χ), the unit of the existential
+      exact curry (ex_unit (Prod.fst : X.carrier × Prop' P → X.carrier)
+        (conj χ.rel (subst (fun p : X.carrier × Prop' P => p.2) (@Tripos.generic P _))))
+  exact Quotient.sound
+    ⟨⟨funrel_eq_of_le χ (charFunRel (subobjOfFunRel χ)) hbwd⟩, ⟨hbwd⟩⟩
+
 end Tripos
 
 end LeanExperiments.Realizability

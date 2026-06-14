@@ -144,6 +144,10 @@ All are *data* (entailment is a `Type`), so they are `def`s. -/
 
 variable {P : Type u → Type v} [Tripos P]
 
+/-- Reindexing along equal maps gives equal predicates (one direction). -/
+def subst_congr {I J : Type u} {f g : I → J} (h : f = g) (φ : P J) :
+    entails (subst f φ) (subst g φ) := by rw [h]; exact le_refl _
+
 /-- Trivial reindexing entailment (`φ ⊢ subst id φ`). -/
 def subst_id_ge {I : Type u} (φ : P I) : entails φ (subst id φ) := by
   rw [subst_id]; exact le_refl φ
