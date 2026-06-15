@@ -1769,6 +1769,306 @@ def Λ_congCond_f (g : FunRel (prodPER Z X) Y) :
         hgc))
     (impl_mp _ _)
 
+/-- `∃y. g((z,x),y)` over the common index, for the transpose's totality. -/
+def Λgex (g : FunRel (prodPER Z X) Y) :
+    P ((Z.carrier × ExpCar X Y) × X.carrier) :=
+  ex (Prod.fst : ((Z.carrier × ExpCar X Y) × X.carrier) × Y.carrier →
+        (Z.carrier × ExpCar X Y) × X.carrier)
+    (subst (fun w : ((Z.carrier × ExpCar X Y) × X.carrier) × Y.carrier =>
+      ((w.1.1.1, w.1.2), w.2)) g.rel)
+
+/-- From existence of `z` and `x`, `g` produces some value: `∃y. g((z,x),y)`. -/
+def Λgex_total (g : FunRel (prodPER Z X) Y) :
+    conj (subst (fun k : (Z.carrier × ExpCar X Y) × X.carrier => (k.1.1, k.1.1)) Z.rel)
+         (subst (fun k : (Z.carrier × ExpCar X Y) × X.carrier => (k.2, k.2)) X.rel)
+      ⊢ Λgex g := by
+  refine le_trans ?_ (le_trans
+    (subst_mono (fun k : (Z.carrier × ExpCar X Y) × X.carrier => (k.1.1, k.2)) g.total)
+    (ex_subst_fst (fun k : (Z.carrier × ExpCar X Y) × X.carrier => (k.1.1, k.2)) g.rel))
+  simp only [prodPER, subst_conj, ← subst_comp]
+  exact le_refl _
+
+/-- `∃y. f(code,x,y)` over the common index. -/
+def Λfex (g : FunRel (prodPER Z X) Y) :
+    P ((Z.carrier × ExpCar X Y) × X.carrier) :=
+  ex (Prod.fst : ((Z.carrier × ExpCar X Y) × X.carrier) × Y.carrier →
+        (Z.carrier × ExpCar X Y) × X.carrier)
+    (subst (fun w : ((Z.carrier × ExpCar X Y) × X.carrier) × Y.carrier =>
+      w.1.1.2 (w.1.2, w.2)) (@Tripos.generic P _))
+
+/-- Carry the bi-implication into the existential: `∃y g → ∃y f`. -/
+def Λfex_of_gex (g : FunRel (prodPER Z X) Y) :
+    conj (subst (Prod.fst : (Z.carrier × ExpCar X Y) × X.carrier → Z.carrier × ExpCar X Y)
+            (all (Prod.fst : (Z.carrier × ExpCar X Y) × (X.carrier × Y.carrier) →
+                Z.carrier × ExpCar X Y) (ΛBody g)))
+         (Λgex g)
+      ⊢ Λfex g := by
+  refine le_trans (frobenius
+    (Prod.fst : ((Z.carrier × ExpCar X Y) × X.carrier) × Y.carrier →
+      (Z.carrier × ExpCar X Y) × X.carrier)
+    (subst (fun w : ((Z.carrier × ExpCar X Y) × X.carrier) × Y.carrier =>
+      ((w.1.1.1, w.1.2), w.2)) g.rel)
+    (subst (Prod.fst : (Z.carrier × ExpCar X Y) × X.carrier → Z.carrier × ExpCar X Y)
+      (all (Prod.fst : (Z.carrier × ExpCar X Y) × (X.carrier × Y.carrier) → Z.carrier × ExpCar X Y)
+        (ΛBody g))))
+    (ex_mono _ ?_)
+  have hinst := all_inst
+    (Prod.fst : (Z.carrier × ExpCar X Y) × (X.carrier × Y.carrier) → Z.carrier × ExpCar X Y)
+    (fun w : ((Z.carrier × ExpCar X Y) × X.carrier) × Y.carrier => (w.1.1, (w.1.2, w.2)))
+    (ΛBody g)
+  simp only [← subst_comp]
+  refine le_trans (le_conj
+    (le_trans (le_trans (conj_le_left _ _) hinst)
+      (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_right _ _))
+    (conj_le_right _ _))
+    (impl_mp _ _)
+
+/-- The transposed code `f` inherits totality from `g`. -/
+def Λ_totalCond_f (g : FunRel (prodPER Z X) Y) :
+    ΛRel g ⊢ subst (fun p : Z.carrier × ExpCar X Y => p.2) (expTotalCond X Y) := by
+  refine le_trans (all_adj_mp ?_) (all_subst_fst (fun p : Z.carrier × ExpCar X Y => p.2)
+    (impl (subst (fun t : ExpCar X Y × X.carrier => (t.2, t.2)) X.rel)
+      (ex (fun u : ExpCar X Y × X.carrier × Y.carrier => (u.1, u.2.1))
+          (subst (fun u : ExpCar X Y × X.carrier × Y.carrier => u.1 (u.2.1, u.2.2))
+            (@Tripos.generic P _)))))
+  simp only [ΛRel, subst_impl, subst_conj, ← subst_comp]
+  apply curry
+  refine le_trans (le_conj (le_trans (conj_le_left _ _) (conj_le_right _ _))
+      (le_trans (le_conj (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_right _ _))
+        (Λgex_total g)))
+    (le_trans (Λfex_of_gex g) ?_)
+  refine ex_adj_mpr ?_
+  have hu := subst_mono
+    (fun w : ((Z.carrier × ExpCar X Y) × X.carrier) × Y.carrier => (w.1.1.2, w.1.2, w.2))
+    (ex_unit (fun u : ExpCar X Y × X.carrier × Y.carrier => (u.1, u.2.1))
+      (subst (fun u : ExpCar X Y × X.carrier × Y.carrier => u.1 (u.2.1, u.2.2)) (@Tripos.generic P _)))
+  simp only [← subst_comp] at hu
+  erw [← subst_comp]
+  exact hu
+
+/-- The transposed code is a functional relation. -/
+def Λ_isFunc (g : FunRel (prodPER Z X) Y) :
+    ΛRel g ⊢ subst (fun p : Z.carrier × ExpCar X Y => p.2) (expIsFunc X Y) := by
+  simp only [expIsFunc, subst_conj]
+  exact le_conj (le_conj (le_conj (Λ_strictDom_f g) (Λ_strictCod_f g))
+    (le_conj (Λ_congCond_f g) (Λ_singleCond_f g))) (Λ_totalCond_f g)
+
+/-- The transpose is strict in the codomain (lands in `Y ^ X`). -/
+def Λ_strict_cod (g : FunRel (prodPER Z X) Y) :
+    ΛRel g ⊢ subst (fun p : Z.carrier × ExpCar X Y => (p.2, p.2)) (expObj X Y).rel := by
+  simp only [expObj, subst_conj, ← subst_comp]
+  exact le_conj (le_conj (Λ_isFunc g) (Λ_isFunc g)) (Λ_extEq_refl g)
+
+/-- A functional relation respects `~` in its first (`Z`) argument:
+`g((z,x),y) ∧ z~z' ⊢ g((z',x),y)`. -/
+def g_transfer (g : FunRel (prodPER Z X) Y) :
+    conj (subst (fun w : Z.carrier × Z.carrier × X.carrier × Y.carrier =>
+            ((w.1, w.2.2.1), w.2.2.2)) g.rel)
+         (subst (fun w : Z.carrier × Z.carrier × X.carrier × Y.carrier => (w.1, w.2.1)) Z.rel)
+      ⊢ subst (fun w : Z.carrier × Z.carrier × X.carrier × Y.carrier =>
+          ((w.2.1, w.2.2.1), w.2.2.2)) g.rel := by
+  have hgc := subst_mono
+    (fun w : Z.carrier × Z.carrier × X.carrier × Y.carrier =>
+      ((w.1, w.2.2.1), (w.2.1, w.2.2.1), w.2.2.2, w.2.2.2)) g.cong
+  simp only [prodPER, subst_conj, ← subst_comp] at hgc
+  have hsd := subst_mono
+    (fun w : Z.carrier × Z.carrier × X.carrier × Y.carrier => ((w.1, w.2.2.1), w.2.2.2))
+    g.strict_dom
+  simp only [prodPER, subst_conj, ← subst_comp] at hsd
+  have hsc := subst_mono
+    (fun w : Z.carrier × Z.carrier × X.carrier × Y.carrier => ((w.1, w.2.2.1), w.2.2.2))
+    g.strict_cod
+  erw [← subst_comp] at hsc
+  refine le_trans (le_conj (le_conj (conj_le_left _ _)
+    (le_conj (conj_le_right _ _) ?_)) ?_) hgc
+  · exact le_trans (conj_le_left _ _) (le_trans hsd (conj_le_right _ _))
+  · exact le_trans (conj_le_left _ _) hsc
+
+/-- The transpose is single-valued (codes equal up to `≈`). -/
+def Λ_single (g : FunRel (prodPER Z X) Y) :
+    conj (subst (fun t : Z.carrier × ExpCar X Y × ExpCar X Y => (t.1, t.2.1)) (ΛRel g))
+         (subst (fun t : Z.carrier × ExpCar X Y × ExpCar X Y => (t.1, t.2.2)) (ΛRel g))
+      ⊢ subst (fun t : Z.carrier × ExpCar X Y × ExpCar X Y => (t.2.1, t.2.2)) (expObj X Y).rel := by
+  simp only [expObj, subst_conj, ← subst_comp]
+  refine le_conj (le_conj ?_ ?_) ?_
+  · have h := subst_mono (fun t : Z.carrier × ExpCar X Y × ExpCar X Y => (t.1, t.2.1)) (Λ_isFunc g)
+    erw [← subst_comp] at h
+    exact le_trans (conj_le_left _ _) h
+  · have h := subst_mono (fun t : Z.carrier × ExpCar X Y × ExpCar X Y => (t.1, t.2.2)) (Λ_isFunc g)
+    erw [← subst_comp] at h
+    exact le_trans (conj_le_right _ _) h
+  · refine le_trans (all_adj_mp ?_)
+      (all_subst_fst (fun t : Z.carrier × ExpCar X Y × ExpCar X Y => (t.2.1, t.2.2))
+        (expExtBody X Y))
+    have hbf := all_inst
+      (Prod.fst : (Z.carrier × ExpCar X Y) × (X.carrier × Y.carrier) → Z.carrier × ExpCar X Y)
+      (fun s : (Z.carrier × ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+        ((s.1.1, s.1.2.1), s.2)) (ΛBody g)
+    have hbf' := all_inst
+      (Prod.fst : (Z.carrier × ExpCar X Y) × (X.carrier × Y.carrier) → Z.carrier × ExpCar X Y)
+      (fun s : (Z.carrier × ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+        ((s.1.1, s.1.2.2), s.2)) (ΛBody g)
+    simp only [ΛRel, expExtBody, subst_conj, subst_impl, ← subst_comp]
+    refine le_conj
+      (le_trans (le_conj
+          (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (le_trans hbf
+            (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_left _ _)))
+          (le_trans (le_trans (conj_le_right _ _) (conj_le_right _ _)) (le_trans hbf'
+            (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_right _ _))))
+        (impl_trans _ _ _))
+      (le_trans (le_conj
+          (le_trans (le_trans (conj_le_right _ _) (conj_le_right _ _)) (le_trans hbf'
+            (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_left _ _)))
+          (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (le_trans hbf
+            (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_right _ _))))
+        (impl_trans _ _ _))
+
+/-- The transpose is relational (respects `~` in `Z` and `≈` in `Y^X`). -/
+def Λ_cong (g : FunRel (prodPER Z X) Y) :
+    conj (conj (subst (fun t : Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y => (t.1, t.2.2.1))
+                  (ΛRel g))
+               (subst (fun t : Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y => (t.1, t.2.1)) Z.rel))
+         (subst (fun t : Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y => (t.2.2.1, t.2.2.2))
+            (expObj X Y).rel)
+      ⊢ subst (fun t : Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y => (t.2.1, t.2.2.2)) (ΛRel g) := by
+  simp only [ΛRel, expObj, subst_conj, ← subst_comp]
+  refine le_conj ?_ ?_
+  · exact le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _))
+      (Z.refl_right_at (K := Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y)
+        (fun t => t.1) (fun t => t.2.1))
+  · refine le_trans (all_adj_mp ?_)
+      (all_subst_fst (fun t : Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y => (t.2.1, t.2.2.2))
+        (ΛBody g))
+    have hext := all_inst
+      (Prod.fst : (ExpCar X Y × ExpCar X Y) × (X.carrier × Y.carrier) → ExpCar X Y × ExpCar X Y)
+      (fun q : (Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+        ((q.1.2.2.1, q.1.2.2.2), q.2)) (expExtBody X Y)
+    have hΛf := all_inst
+      (Prod.fst : (Z.carrier × ExpCar X Y) × (X.carrier × Y.carrier) → Z.carrier × ExpCar X Y)
+      (fun q : (Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+        ((q.1.1, q.1.2.2.1), q.2)) (ΛBody g)
+    have htr := subst_mono
+      (fun q : (Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+        (q.1.1, q.1.2.1, q.2.1, q.2.2)) (g_transfer g)
+    simp only [subst_conj, ← subst_comp] at htr
+    have htr' := subst_mono
+      (fun q : (Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier =>
+        (q.1.2.1, q.1.1, q.2.1, q.2.2)) (g_transfer g)
+    simp only [subst_conj, ← subst_comp] at htr'
+    have hzz' := Z.symm_at
+      (K := (Z.carrier × Z.carrier × ExpCar X Y × ExpCar X Y) × X.carrier × Y.carrier)
+      (fun q => q.1.1) (fun q => q.1.2.1)
+    simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]
+    refine le_conj ?_ ?_
+    · -- impl f'(x,y) g(z',x,y), via f' → f → g(z,·) → g(z',·)
+      apply curry
+      exact le_trans (le_conj
+          (le_trans (le_conj
+              (le_trans (le_trans (conj_le_left _ _)
+                  (le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_right _ _)))
+                (le_trans hΛf
+                  (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_left _ _)))
+              (le_trans (le_conj
+                  (le_trans (le_trans (conj_le_left _ _) (le_trans (conj_le_right _ _) (conj_le_right _ _)))
+                    (le_trans hext
+                      (by simp only [expExtBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_right _ _)))
+                  (conj_le_right _ _))
+                (impl_mp _ _)))
+            (impl_mp _ _))
+          (le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _) (conj_le_right _ _))))
+        htr
+    · -- impl g(z',x,y) f'(x,y), via g(z',·) → g(z,·) → f → f'
+      apply curry
+      exact le_trans (le_conj
+          (le_trans (le_trans (conj_le_left _ _) (le_trans (conj_le_right _ _) (conj_le_right _ _)))
+            (le_trans hext
+              (by simp only [expExtBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_left _ _)))
+          (le_trans (le_conj
+              (le_trans (le_trans (conj_le_left _ _)
+                  (le_trans (le_trans (conj_le_left _ _) (conj_le_left _ _)) (conj_le_right _ _)))
+                (le_trans hΛf
+                  (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_right _ _)))
+              (le_trans (le_conj (conj_le_right _ _)
+                  (le_trans (le_trans (conj_le_left _ _) (le_trans (conj_le_left _ _) (conj_le_right _ _)))
+                    hzz'))
+                htr'))
+            (impl_mp _ _)))
+        (impl_mp _ _)
+
+/-- The transpose (currying) functional relation `Z ⟶ Y ^ X`. -/
+def ΛFunRel (g : FunRel (prodPER Z X) Y) : FunRel Z (expObj X Y) where
+  rel := ΛRel g
+  strict_dom := Λ_strict_dom g
+  strict_cod := Λ_strict_cod g
+  cong := Λ_cong g
+  single := Λ_single g
+  total := Λ_total g
+
+/-- The transpose as a `Hom`: `Hom.curry g : Z ⟶ Y ^ X`. -/
+def Hom.curry (g : FunRel (prodPER Z X) Y) : Hom Z (expObj X Y) := Quotient.mk _ (ΛFunRel g)
+
+/-! ### The exponential adjunction (universal property)
+
+`uncurry h` is `eval ∘ (h × id)` at the relation level: `((z,x),y)` is related iff
+`∃f. h(z,f) ∧ f(x,y)`.  Currying and uncurrying are mutually inverse. -/
+
+/-- Uncurrying: `((z,x),y) ↦ ∃f. h(z,f) ∧ f(x,y)`. -/
+def uncurryRel (h : FunRel Z (expObj X Y)) : P ((Z.carrier × X.carrier) × Y.carrier) :=
+  ex (fun w : ((Z.carrier × X.carrier) × Y.carrier) × ExpCar X Y => w.1)
+    (conj (subst (fun w : ((Z.carrier × X.carrier) × Y.carrier) × ExpCar X Y => (w.1.1.1, w.2)) h.rel)
+          (subst (fun w : ((Z.carrier × X.carrier) × Y.carrier) × ExpCar X Y =>
+            w.2 (w.1.1.2, w.1.2)) (@Tripos.generic P _)))
+
+/-- β-rule, `⊢` direction: `uncurry (curry g) ⊢ g` (collapse through `f ↔ g(z,·)`). -/
+def uncurry_curry_le (g : FunRel (prodPER Z X) Y) : uncurryRel (ΛFunRel g) ⊢ g.rel := by
+  refine ex_adj_mpr ?_
+  have hinst := all_inst
+    (Prod.fst : (Z.carrier × ExpCar X Y) × (X.carrier × Y.carrier) → Z.carrier × ExpCar X Y)
+    (fun w : ((Z.carrier × X.carrier) × Y.carrier) × ExpCar X Y =>
+      ((w.1.1.1, w.2), (w.1.1.2, w.1.2))) (ΛBody g)
+  simp only [ΛFunRel, ΛRel, subst_conj, ← subst_comp]
+  refine le_trans (le_conj
+      (le_trans (le_trans (conj_le_left _ _) (conj_le_right _ _)) (le_trans hinst
+        (by simp only [ΛBody, subst_conj, subst_impl, ← subst_comp]; exact conj_le_left _ _)))
+      (conj_le_right _ _))
+    (impl_mp _ _)
+
+/-- β-rule, `⊇` direction: `g ⊢ uncurry (curry g)` (witness code `char (g(z,·))`). -/
+def uncurry_curry_ge (g : FunRel (prodPER Z X) Y) : g.rel ⊢ uncurryRel (ΛFunRel g) := by
+  have hu := subst_mono
+    (fun p : (Z.carrier × X.carrier) × Y.carrier =>
+      (p, fun q : X.carrier × Y.carrier => Tripos.char (Λcg g) (p.1.1, q)))
+    (ex_unit (fun w : ((Z.carrier × X.carrier) × Y.carrier) × ExpCar X Y => w.1)
+      (conj (subst (fun w : ((Z.carrier × X.carrier) × Y.carrier) × ExpCar X Y => (w.1.1.1, w.2))
+              (ΛFunRel g).rel)
+            (subst (fun w : ((Z.carrier × X.carrier) × Y.carrier) × ExpCar X Y =>
+              w.2 (w.1.1.2, w.1.2)) (@Tripos.generic P _))))
+  simp only [← subst_comp] at hu
+  refine le_trans ?_ (le_trans hu (subst_id_le _))
+  simp only [ΛFunRel, ΛRel, subst_conj, ← subst_comp]
+  refine le_conj (le_conj ?_ ?_) ?_
+  · -- E_Z(z)
+    have h : g.rel ⊢ _ := g.strict_dom
+    simp only [prodPER, subst_conj, ← subst_comp] at h
+    exact le_trans h (conj_le_left _ _)
+  · -- ΛExt(z, char) — identity ∀-biimplication
+    refine le_trans (le_top _) (le_trans (all_adj_mp ?_)
+      (all_subst_fst (fun p : (Z.carrier × X.carrier) × Y.carrier =>
+        (p.1.1, fun q : X.carrier × Y.carrier => Tripos.char (Λcg g) (p.1.1, q))) (ΛBody g)))
+    simp only [ΛBody, subst_top, subst_conj, subst_impl, ← subst_comp, Function.comp_def]
+    rw [show (fun s : ((Z.carrier × X.carrier) × Y.carrier) × X.carrier × Y.carrier =>
+            Tripos.char (Λcg g) (s.1.1.1, (s.2.1, s.2.2)))
+          = (Tripos.char (Λcg g)) ∘ (fun s => (s.1.1.1, (s.2.1, s.2.2))) from rfl,
+      subst_comp, subst_char, Λcg, ← subst_comp]
+    exact le_conj (id_impl _) (id_impl _)
+  · -- char (g(z,·)) (x,y) = g((z,x),y)
+    simp only [Function.comp_def]
+    rw [show (fun p : (Z.carrier × X.carrier) × Y.carrier =>
+            Tripos.char (Λcg g) (p.1.1, (p.1.2, p.2)))
+          = (Tripos.char (Λcg g)) ∘ (fun p => (p.1.1, (p.1.2, p.2))) from rfl,
+      subst_comp, subst_char, Λcg, ← subst_comp]
+    exact subst_id_ge _
+
 end Tripos
 
 end LeanExperiments.Realizability

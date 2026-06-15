@@ -208,6 +208,16 @@ def ex_subst_fst {J K L : Type u} (h : K → J) (φ : P (J × L)) :
   funext s
   exact Prod.ext_iff.mpr ⟨s.2.symm, rfl⟩
 
+/-- Reverse of `ex_subst_fst` (derivable from the adjunction). -/
+def ex_subst_fst' {J K L : Type u} (h : K → J) (φ : P (J × L)) :
+    entails (ex (Prod.fst : K × L → K) (subst (fun p : K × L => (h p.1, p.2)) φ))
+            (subst h (ex (Prod.fst : J × L → J) φ)) := by
+  refine ex_adj_mpr ?_
+  erw [← subst_comp]
+  have hu := subst_mono (fun p : K × L => (h p.1, p.2)) (ex_unit (Prod.fst : J × L → J) φ)
+  simp only [← subst_comp] at hu
+  exact hu
+
 /-- Instantiate a `∀`: `(∀_f φ)` reindexed along `f ∘ h` entails `φ` reindexed
 along `h`.  The workhorse for using a universally-quantified hypothesis at a
 specific point. -/
