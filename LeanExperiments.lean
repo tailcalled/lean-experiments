@@ -5,3 +5,4 @@ import LeanExperiments.PCA
 import LeanExperiments.Realizability
 import LeanExperiments.Realizability.Tripos
 import LeanExperiments.Realizability.Topos
+import LeanExperiments.Realizability.ToposClass
