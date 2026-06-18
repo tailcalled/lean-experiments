@@ -89,6 +89,36 @@ class CartesianClosed (Obj : Type uo) [Category Obj] [HasBinaryProducts Obj] whe
 def Mono {Obj : Type uo} [Category Obj] {X Y : Obj} (m : Hom X Y) : Prop :=
   ∀ {Z : Obj} (g h : Hom Z X), comp m g = comp m h → g = h
 
+/-- The diagonal `Δ : C ⟶ C × C`. -/
+def diagonal {Obj : Type uo} [Category Obj] [HasBinaryProducts Obj] (C : Obj) :
+    Hom C (HasBinaryProducts.prod C C) :=
+  HasBinaryProducts.lift (Category.id C) (Category.id C)
+
+/-- The diagonal is a (split) mono. -/
+theorem diagonal_mono {Obj : Type uo} [Category Obj] [HasBinaryProducts Obj] (C : Obj) :
+    Mono (diagonal C) := by
+  intro Z g h hgh
+  have key : comp (HasBinaryProducts.fst C C) (comp (diagonal C) g)
+      = comp (HasBinaryProducts.fst C C) (comp (diagonal C) h) := by rw [hgh]
+  rw [← assoc, ← assoc,
+    show comp (HasBinaryProducts.fst C C) (diagonal C) = Category.id C from
+      HasBinaryProducts.fst_lift _ _,
+    Category.id_comp, Category.id_comp] at key
+  exact key
+
+/-- Composition distributes over pairing: `⟨f, h⟩ ∘ v = ⟨f ∘ v, h ∘ v⟩`. -/
+theorem comp_lift {Obj : Type uo} [Category Obj] [HasBinaryProducts Obj] {W Z X Y : Obj}
+    (v : Hom W Z) (f : Hom Z X) (h : Hom Z Y) :
+    comp (HasBinaryProducts.lift f h) v
+      = HasBinaryProducts.lift (comp f v) (comp h v) := by
+  rw [← HasBinaryProducts.lift_proj (comp (HasBinaryProducts.lift f h) v), ← assoc, ← assoc,
+    HasBinaryProducts.fst_lift, HasBinaryProducts.snd_lift]
+
+/-- `Δ_C ∘ v = ⟨v, v⟩`. -/
+theorem comp_diagonal {Obj : Type uo} [Category Obj] [HasBinaryProducts Obj] {W C : Obj}
+    (v : Hom W C) : comp (diagonal C) v = HasBinaryProducts.lift v v := by
+  rw [diagonal, comp_lift, Category.id_comp]
+
 /-- The square
 ```
   Pb --p₂--> B
@@ -120,6 +150,13 @@ class HasSubobjectClassifier (Obj : Type uo) [Category Obj] [HasTerminal Obj] wh
   /-- The classifying map is the unique one whose square is a pullback. -/
   char_unique : ∀ {S X : Obj} (m : Hom S X) (hm : Mono m) (χ : Hom X Omega),
     IsPullback m (HasTerminal.toTerm S) χ truth → χ = char m hm
+  /-- **Comprehension / representability**: every `χ : X ⟶ Ω` *is* the classifier of an
+  actual subobject — the pullback of `truth` along `χ` exists.  Propositionally
+  truncated (`Squash`) rather than erased: the object `E` and inclusion `i` survive as
+  subsingleton-`Type` data, while the pullback property is the `Prop` part.  This is the
+  half of "subobject classifier" that, with finite products, yields all finite limits. -/
+  comprehension : ∀ {X : Obj} (χ : Hom X Omega),
+    Squash (Σ E : Obj, { i : Hom E X // IsPullback i (HasTerminal.toTerm E) χ truth })
 
 /-- An elementary topos: a category equipped with a terminal object, binary
 products, exponentials, and a subobject classifier. -/
@@ -131,6 +168,48 @@ class Topos (Obj : Type uo) [Category Obj] where
 
 attribute [instance] Topos.hasTerminal Topos.hasBinaryProducts Topos.cartesianClosed
   Topos.hasSubobjectClassifier
+
+/-- **A topos has pullbacks** (propositionally truncated).  The pullback of `f, g` is
+the comprehension of `char Δ_C ∘ ⟨f∘π₁, g∘π₂⟩ : A × B ⟶ Ω`. -/
+def hasPullback {Obj : Type uo} [Category Obj] [HasTerminal Obj] [HasBinaryProducts Obj]
+    [HasSubobjectClassifier Obj] {A B C : Obj} (f : Hom A C) (g : Hom B C) :
+    Squash (Σ Pb : Obj, Σ' (p₁ : Hom Pb A) (p₂ : Hom Pb B), IsPullback p₁ p₂ f g) :=
+  Squash.lift
+    (HasSubobjectClassifier.comprehension
+      (comp (HasSubobjectClassifier.char (diagonal C) (diagonal_mono C))
+        (HasBinaryProducts.lift (comp f (HasBinaryProducts.fst A B))
+          (comp g (HasBinaryProducts.snd A B)))))
+    (fun ⟨E, i, hi⟩ => Squash.mk
+      ⟨E, comp (HasBinaryProducts.fst A B) i, comp (HasBinaryProducts.snd A B) i,
+        by -- commutativity
+          have hc := hi.comm
+          rw [assoc, comp_lift, assoc, assoc] at hc
+          obtain ⟨v, hv, -, -⟩ := (HasSubobjectClassifier.char_isPullback (diagonal C)
+            (diagonal_mono C)).universal _ (HasTerminal.toTerm E) hc
+          rw [comp_diagonal] at hv
+          have e1 := congrArg (comp (HasBinaryProducts.fst C C)) hv
+          have e2 := congrArg (comp (HasBinaryProducts.snd C C)) hv
+          rw [HasBinaryProducts.fst_lift, HasBinaryProducts.fst_lift] at e1
+          rw [HasBinaryProducts.snd_lift, HasBinaryProducts.snd_lift] at e2
+          rw [← e1, ← e2],
+        by -- universality
+          intro W a b hab
+          have hcone : comp (comp (HasSubobjectClassifier.char (diagonal C) (diagonal_mono C))
+                (HasBinaryProducts.lift (comp f (HasBinaryProducts.fst A B))
+                  (comp g (HasBinaryProducts.snd A B)))) (HasBinaryProducts.lift a b)
+              = comp HasSubobjectClassifier.truth (HasTerminal.toTerm W) := by
+            rw [assoc, comp_lift, assoc, assoc, HasBinaryProducts.fst_lift,
+              HasBinaryProducts.snd_lift, hab, ← comp_diagonal, ← assoc,
+              (HasSubobjectClassifier.char_isPullback (diagonal C) (diagonal_mono C)).comm,
+              assoc, HasTerminal.toTerm_unique (comp (HasTerminal.toTerm C) (comp g b))]
+          obtain ⟨u, hu, -, huniq⟩ := hi.universal (HasBinaryProducts.lift a b)
+            (HasTerminal.toTerm W) hcone
+          refine ⟨u, ?_, ?_, ?_⟩
+          · rw [assoc, hu, HasBinaryProducts.fst_lift]
+          · rw [assoc, hu, HasBinaryProducts.snd_lift]
+          · intro u' h1 h2
+            refine huniq u' ?_ (HasTerminal.toTerm_unique _)
+            rw [← HasBinaryProducts.lift_proj (comp i u'), ← assoc, ← assoc, h1, h2]⟩)
 
 end LeanExperiments.CategoryTheory
 
@@ -241,6 +320,20 @@ theorem charMono_unique {S X : PER P} (m : Hom S X)
     exact le_conj C.strict_dom
       (le_conj (Tripos.curry (charUnique_half1 M C hcomm)) (Tripos.curry half2))
 
+/-- A relationally-injective functional relation is a categorical mono. -/
+theorem funrel_mono {S X : PER P} (m : FunRel S X)
+    (inj : conj (subst (fun p : S.carrier × S.carrier × X.carrier => (p.1, p.2.2)) m.rel)
+                (subst (fun p : S.carrier × S.carrier × X.carrier => (p.2.1, p.2.2)) m.rel)
+             ⊢ subst (fun p : S.carrier × S.carrier × X.carrier => (p.1, p.2.1)) S.rel) :
+    @Mono (PER P) instCategory S X (Quotient.mk _ m) := by
+  intro Z g h hgh
+  obtain ⟨G, rfl⟩ := Quotient.exists_rep g
+  obtain ⟨H, rfl⟩ := Quotient.exists_rep h
+  have hgh' : (Quotient.mk (homSetoid Z X) (compFunRel G m) : Hom Z X)
+      = Quotient.mk _ (compFunRel H m) := hgh
+  obtain ⟨hfwd⟩ := (Quotient.exact hgh').1
+  exact Quotient.sound ⟨⟨monoKey m G H inj hfwd⟩, ⟨funrel_eq_of_le G H (monoKey m G H inj hfwd)⟩⟩
+
 /-- The realizability category has a subobject classifier. -/
 instance instHasSubobjectClassifier : HasSubobjectClassifier (PER P) where
   Omega := omega
@@ -248,6 +341,11 @@ instance instHasSubobjectClassifier : HasSubobjectClassifier (PER P) where
   char := fun m _ => Hom.charMono m
   char_isPullback := fun m hm => charMono_isPullback m hm
   char_unique := fun m _ χ hpb => charMono_unique m χ hpb
+  comprehension := fun {X} χ => by
+    refine Quotient.recOnSubsingleton χ (fun C => ?_)
+    exact Squash.mk ⟨subPER (subobjOfFunRel C), Quotient.mk _ (subIncl (subobjOfFunRel C)),
+      charMono_subIncl C ▸ charMono_isPullback (Quotient.mk _ (subIncl (subobjOfFunRel C)))
+        (funrel_mono (subIncl (subobjOfFunRel C)) (subIncl_inj (subobjOfFunRel C)))⟩
 
 /-- **The realizability category `PER P` is an elementary topos** — computable,
 `Classical`-free, and `sorry`-free. -/

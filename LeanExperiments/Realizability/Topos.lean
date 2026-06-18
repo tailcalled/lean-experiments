@@ -1543,6 +1543,35 @@ def subIncl {X : PER P} (φ : StrictPred X) : FunRel (subPER φ) X where
       (fun x => (x, x)) (by funext x; rfl) _)
     exact le_refl _
 
+/-- The inclusion `subIncl φ` is relationally injective. -/
+def subIncl_inj {X : PER P} (φ : StrictPred X) :
+    conj (subst (fun p : X.carrier × X.carrier × X.carrier => (p.1, p.2.2)) (subIncl φ).rel)
+         (subst (fun p : X.carrier × X.carrier × X.carrier => (p.2.1, p.2.2)) (subIncl φ).rel)
+      ⊢ subst (fun p : X.carrier × X.carrier × X.carrier => (p.1, p.2.1)) (subPER φ).rel := by
+  simp only [subIncl, subPER, subst_conj, ← subst_comp, Function.comp_def]
+  refine le_conj (le_trans (conj_le_left _ _) (conj_le_left _ _)) ?_
+  exact le_trans (le_conj
+    (le_trans (conj_le_left _ _) (conj_le_right _ _))
+    (le_trans (le_trans (conj_le_right _ _) (conj_le_right _ _))
+      (X.symm_at (K := X.carrier × X.carrier × X.carrier) (fun p => p.2.1) (fun p => p.2.2))))
+    (X.trans_at (K := X.carrier × X.carrier × X.carrier)
+      (fun p => p.1) (fun p => p.2.2) (fun p => p.2.1))
+
+/-- The characteristic map of the inclusion of `{χ}` is `χ` itself. -/
+theorem charMono_subIncl {X : PER P} (C : FunRel X (omega : PER P)) :
+    Hom.charMono (Quotient.mk _ (subIncl (subobjOfFunRel C))) = Quotient.mk _ C := by
+  rw [Hom.charMono_mk, ← Hom.char_subobjOfFunRel C]
+  refine Hom.char_congr ?_ ?_
+  · refine ex_adj_mpr ?_
+    exact (subobjOfFunRel C).closed
+  · refine le_trans ?_ (ex_intro_section (Prod.snd : X.carrier × X.carrier → X.carrier)
+      (fun x => (x, x)) (by funext x; rfl) (subIncl (subobjOfFunRel C)).rel)
+    simp only [subIncl]
+    erw [subst_conj]
+    refine le_conj ?_ (subobjOfFunRel C).strict
+    erw [← subst_comp]
+    exact subst_id_ge _
+
 /-- `∃s. M(s,x)` reindexed into `X × Prop'`, as an explicit `∃`-form (for eliminating
 the `∃s` in `char_unique`'s `comm`-half).  Beck–Chevalley shuffle. -/
 def imgM_exX {S X : PER P} (M : FunRel S X) :
@@ -2140,6 +2169,76 @@ realizer comes from `Quotient.exact` on `Mono`'s `Prop`-valued equality.  Usable
   match (Quotient.exact (hmono (Quotient.mk _ (kerProj1 m)) (Quotient.mk _ (kerProj2 m))
       (kerProj_comm m))).1 with
   | ⟨e⟩ => ⟨kerProj_to_inj m e⟩
+
+/-- Relational core of "injective ⇒ mono": if `m` is relationally injective, then
+`G ; m ⊢ H ; m` forces `G ⊢ H`. -/
+def monoKey {Z S X : PER P} (m : FunRel S X) (G H : FunRel Z S)
+    (inj : conj (subst (fun p : S.carrier × S.carrier × X.carrier => (p.1, p.2.2)) m.rel)
+                (subst (fun p : S.carrier × S.carrier × X.carrier => (p.2.1, p.2.2)) m.rel)
+             ⊢ subst (fun p : S.carrier × S.carrier × X.carrier => (p.1, p.2.1)) S.rel)
+    (hfwd : compRel G m ⊢ compRel H m) :
+    G.rel ⊢ H.rel := by
+  have hmtot : G.rel ⊢ ex (fun t : Z.carrier × S.carrier × X.carrier => (t.1, t.2.1))
+      (subst (fun t : Z.carrier × S.carrier × X.carrier => (t.2.1, t.2.2)) m.rel) := by
+    refine le_trans G.strict_cod ?_
+    have hm := subst_mono (Prod.snd : Z.carrier × S.carrier → S.carrier) m.total
+    rw [← subst_comp] at hm
+    refine le_trans hm ?_
+    refine subst_ex_elim (Prod.fst : S.carrier × X.carrier → S.carrier)
+      (Prod.snd : Z.carrier × S.carrier → S.carrier) ?_
+    have hu := subst_mono
+      (fun s : { p : (Z.carrier × S.carrier) × (S.carrier × X.carrier) //
+          Prod.snd p.1 = Prod.fst p.2 } => (s.1.1.1, (s.1.1.2, s.1.2.2)))
+      (ex_unit (fun t : Z.carrier × S.carrier × X.carrier => (t.1, t.2.1))
+        (subst (fun t : Z.carrier × S.carrier × X.carrier => (t.2.1, t.2.2)) m.rel))
+    rw [← subst_comp, ← subst_comp] at hu
+    refine le_trans ?_ hu
+    rw [show (fun s : { p : (Z.carrier × S.carrier) × (S.carrier × X.carrier) //
+            Prod.snd p.1 = Prod.fst p.2 } => s.1.2)
+          = ((fun t : Z.carrier × S.carrier × X.carrier => (t.2.1, t.2.2)) ∘
+              (fun s => (s.1.1.1, (s.1.1.2, s.1.2.2)))) from by
+      funext s
+      show s.1.2 = (s.1.1.2, s.1.2.2)
+      rw [s.2]]
+    exact le_refl _
+  refine le_trans (le_conj (le_refl G.rel) hmtot) ?_
+  refine le_trans (frobenius (fun t : Z.carrier × S.carrier × X.carrier => (t.1, t.2.1))
+    (subst (fun t : Z.carrier × S.carrier × X.carrier => (t.2.1, t.2.2)) m.rel) G.rel) ?_
+  refine ex_adj_mpr ?_
+  have hcg : conj (subst (fun t : Z.carrier × S.carrier × X.carrier => (t.1, t.2.1)) G.rel)
+      (subst (fun t : Z.carrier × S.carrier × X.carrier => (t.2.1, t.2.2)) m.rel)
+      ⊢ subst (fun t : Z.carrier × S.carrier × X.carrier => (t.1, t.2.2)) (compRel G m) := by
+    have hu := subst_mono (fun t : Z.carrier × S.carrier × X.carrier => (t.1, t.2.1, t.2.2))
+      (ex_unit (fun d : Z.carrier × S.carrier × X.carrier => (d.1, d.2.2))
+        (conj (subst (fun d : Z.carrier × S.carrier × X.carrier => (d.1, d.2.1)) G.rel)
+              (subst (fun d : Z.carrier × S.carrier × X.carrier => (d.2.1, d.2.2)) m.rel)))
+    simp only [subst_conj, ← subst_comp] at hu
+    exact hu
+  refine le_trans (le_conj (conj_le_right _ _)
+    (le_trans hcg (subst_mono (fun t : Z.carrier × S.carrier × X.carrier => (t.1, t.2.2)) hfwd))) ?_
+  refine le_trans (conj_mono (le_refl _)
+    (subst_ex_mid (fun t : Z.carrier × S.carrier × X.carrier => (t.1, t.2.2))
+      (conj (subst (fun d : Z.carrier × S.carrier × X.carrier => (d.1, d.2.1)) H.rel)
+            (subst (fun d : Z.carrier × S.carrier × X.carrier => (d.2.1, d.2.2)) m.rel)))) ?_
+  refine le_trans (le_conj (conj_le_right _ _) (conj_le_left _ _)) ?_
+  refine conj_ex_elim Prod.fst ?_
+  simp only [subst_conj, ← subst_comp, Function.comp_def]
+  have hHcong := subst_mono (fun p : (Z.carrier × S.carrier × X.carrier) × S.carrier =>
+    (p.1.1, p.1.1, p.2, p.1.2.1)) H.cong
+  simp only [subst_conj, ← subst_comp, Function.comp_def] at hHcong
+  have hinj := subst_mono (fun p : (Z.carrier × S.carrier × X.carrier) × S.carrier =>
+    (p.1.2.1, p.2, p.1.2.2)) inj
+  simp only [subst_conj, ← subst_comp, Function.comp_def] at hinj
+  have hHdom := subst_mono (fun p : (Z.carrier × S.carrier × X.carrier) × S.carrier =>
+    (p.1.1, p.2)) H.strict_dom
+  simp only [← subst_comp, Function.comp_def] at hHdom
+  refine le_trans (le_conj (le_conj ?_ ?_) ?_) hHcong
+  · exact le_trans (conj_le_right _ _) (conj_le_left _ _)
+  · exact le_trans (le_trans (conj_le_right _ _) (conj_le_left _ _)) hHdom
+  · refine le_trans (le_conj (conj_le_left _ _)
+      (le_trans (conj_le_right _ _) (conj_le_right _ _)))
+      (le_trans hinj (S.symm_at (K := (Z.carrier × S.carrier × X.carrier) × S.carrier)
+        (fun p => p.1.2.1) (fun p => p.2)))
 
 /-! ### Assembling the pullback lift -/
 
